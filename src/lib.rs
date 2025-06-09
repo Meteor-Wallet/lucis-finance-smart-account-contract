@@ -7,7 +7,7 @@ use near_sdk::{env, near, near_bindgen, AccountId, Promise, PublicKey};
 #[near(serializers = [json, borsh])]
 pub struct LinkInfo {
     /// The linked Ethereum address (20 bytes).
-    eth_address: Vec<u8>,
+    eth_address: Vec<String>,
     /// The NEAR public key of the account at the time of linking (for recovery purposes).
     near_pk: PublicKey,
     nonce: u64,           
@@ -16,14 +16,14 @@ pub struct LinkInfo {
 #[near(contract_state)]
 pub struct Contract {
     /// Reverse mapping from Ethereum address (20 bytes) to NEAR account.
-    eth_to_account: LookupMap<Vec<u8>, AccountId>,
+    linked_eth_accounts: LookupMap<Vec<u8>, AccountId>,
     nonce: u64, // Nonce for the contract, used to prevent replay attacks
 }
 
 impl Default for Contract {
     fn default() -> Self {
         Self {
-            eth_to_account: LookupMap::new(b"eth_to_account".to_vec()),
+            linked_eth_accounts: LookupMap::new(b"eth_to_account".to_vec()),
             nonce: 0, // Initialize nonce to 0
         }
     }
@@ -46,23 +46,19 @@ pub struct EcrecoverOutput {
 impl Contract {
     // #[payable]
     pub fn link_eth_address(&mut self, eth_address: String, nonce: u64, signature: String) {
-        // Verify the nonce
+        // Step 1: Verify the nonce
         self.verify_nonce(nonce)
             .expect("Invalid nonce: expected one greater than the current nonce");
 
-        // We are using signer instead of predecessor as it might be a relayed transaction
+        
+        // Step 2: Validate the Ethereum address format
         let caller = env::signer_account_id();
-
-        // Parse the Ethereum address string to bytes (20 bytes)
         let eth_clean = eth_address.trim_start_matches("0x");
         let eth_bytes = hex::decode(eth_clean).expect("Invalid Ethereum address format");
         assert!(eth_bytes.len() == 20, "Ethereum address should be 20 bytes");
-        assert!(
-            self.eth_to_account.get(&eth_bytes).is_none(),
-            "Ethereum address is already linked to another account"
-        );
+        
 
-        // Construct the expected message for signature verification
+        // Step 3: Construct the expected message for signature verification
         let account_id = caller.clone();
         let message = format!(
             "Link NEAR account {} to Ethereum address {} with nonce {}",
@@ -70,13 +66,14 @@ impl Contract {
         );
         near_sdk::log!("message = {}", message);
 
+        // Step 4: Get the hash of the constructed message, this hash is what was signed
         let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
         let mut to_hash = Vec::new();
         to_hash.extend(prefix.as_bytes());
         to_hash.extend(message.as_bytes());
         let hash = env::keccak256_array(&to_hash);
 
-        // Parse the signature from hex
+        // Step 5: Extract rsv components from the signature
         let sig_clean = signature.trim_start_matches("0x");
         let sig_bytes = hex::decode(sig_clean).expect("Invalid signature format");
         assert!(
@@ -89,20 +86,23 @@ impl Contract {
         if v >= 27 {
             v -= 27;
         }
-        // Recover the public key from the signature
+
+        // Step 6: Recover the public key from the signature using rsv components and the message hash
         let pubkey_bytes = Self::recover_pubkey(&hash, &rs, v).expect("Signature recovery failed");
-        // Derive Ethereum address from recovered public key
+
+        // Step 7: Derive Ethereum address from recovered public key
         let hash_pub = env::keccak256_array(&pubkey_bytes);
         let recovered_addr = &hash_pub[12..32]; // last 20 bytes of keccak256(pubkey)
         near_sdk::log!("recovered_addr = 0x{}", hex::encode(recovered_addr));
 
+        // Step 8: Verify that the recovered address matches the provided Ethereum address
         assert!(
             recovered_addr == eth_bytes.as_slice(),
             "Signature is not from the provided Ethereum address"
         );
 
-        // Store the mapping from Ethereum address to NEAR account
-        self.eth_to_account.insert(eth_bytes, caller.clone());
+        // Step 9: Check if the Ethereum address is already linked to a NEAR account
+        self.linked_eth_accounts.insert(eth_bytes, caller.clone());
         env::log_str(&format!(
             "Linked NEAR account {} to Ethereum address {}",
             account_id, eth_address
@@ -142,7 +142,7 @@ impl Contract {
         // Derive Ethereum address and verify it matches the linked address
         let hash_pub = env::keccak256_array(&pubkey_bytes);
         let recovered_addr = &hash_pub[12..32];
-        self.eth_to_account
+        self.linked_eth_accounts
             .get(recovered_addr)
             .expect("No linked account for this Ethereum address");
 
@@ -185,7 +185,6 @@ impl Contract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::json_types::Base64VecU8;
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{testing_env, AccountId};
 
@@ -211,10 +210,10 @@ mod tests {
         let eth_address = "0x950918fe5deb16c90a7071d5f3daff3f2e84e0df".to_string();
         let signature = "0xdb49b093334e25780b0462e3e3acaeb16000c2ab1d00e12dd90f5d1e9e92fd4c1cf21f0fbe7cecf2dc769d08d4e532fd4819de42ba421f8cdadef721accb15581c".to_string();
         // let signature ="0x3367d92b3658b38091309a11aa711cbe2884b5a7209954c23ba43c0015b179652be4a0889570bac3c49ccfd1f3bee414b2fc8be957159461b60276a522d124031b".to_string();
-        contract.link_eth_address(eth_address, signature);
+        contract.link_eth_address(eth_address,0, signature);
 
         // Optionally, assert that the mapping is set
-        assert!(contract.eth_to_account.get(&eth_address).is_some());
+        assert!(contract.linked_eth_accounts.get(&eth_address).is_some());
     }
     // -- you can add more tests here once you have real vectors
 }
