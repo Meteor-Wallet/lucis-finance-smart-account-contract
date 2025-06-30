@@ -1,7 +1,10 @@
+pub mod blockchain_verifiers;
+pub mod contract_errors;
 pub mod types;
 
+use crate::blockchain_verifiers::get_verifier;
 use crate::types::Blockchain;
-use near_sdk::store::{LookupMap, Vector};
+use near_sdk::store::LookupMap;
 use near_sdk::{env, near, near_bindgen, Promise, PublicKey};
 use std::str::FromStr;
 
@@ -27,7 +30,7 @@ impl SmartAccountContract {
     pub fn link_eth_address(
         &mut self,
         blockchain: Blockchain,
-        address: String,
+        owner_address: String,
         nonce: u64,
         signature: String,
     ) {
@@ -35,75 +38,39 @@ impl SmartAccountContract {
         self.verify_nonce(nonce)
             .expect("Invalid nonce: expected one greater than the current nonce");
 
-        // Step 2: Validate the Ethereum address format
+        // Step 2: Get the blockchain verifier and validate the address format
+        let blockchain_verifier =
+            get_verifier(blockchain.as_str())
+            .unwrap_or_else(|e| panic!("{}", e.message()));
+        blockchain_verifier
+            .verify_address(owner_address.clone())
+            .unwrap_or_else(|e| panic!("{}", e.message()));
+
+        // Step 3: Verify the signature
         let caller = env::signer_account_id();
-        let eth_clean = address.trim_start_matches("0x");
-        let eth_bytes = hex::decode(eth_clean).expect("Invalid Ethereum address format");
-        assert!(eth_bytes.len() == 20, "Ethereum address should be 20 bytes");
-
-        // Step 3: Construct the expected message for signature verification
         let account_id = caller.clone();
-        let message = format!(
-            "Link NEAR account {} to Ethereum address {} with nonce {}",
-            account_id, address, nonce
-        );
-        near_sdk::log!("message = {}", message);
+        blockchain_verifier.verify_signature(account_id.clone(), owner_address.clone(), nonce, signature)
+            .unwrap_or_else(|e| panic!("{}", e.message()));
 
-        // Step 4: Get the hash of the constructed message, this hash is what was signed
-        let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
-        let mut to_hash = Vec::new();
-        to_hash.extend(prefix.as_bytes());
-        to_hash.extend(message.as_bytes());
-        let hash = env::keccak256_array(&to_hash);
-
-        // Step 5: Extract rsv components from the signature
-        let sig_clean = signature.trim_start_matches("0x");
-        let sig_bytes = hex::decode(sig_clean).expect("Invalid signature format");
-        assert!(
-            sig_bytes.len() == 65,
-            "Signature must be 65 bytes in hex format"
-        );
-        let mut rs = [0u8; 64];
-        rs.copy_from_slice(&sig_bytes[0..64]);
-        let mut v = sig_bytes[64];
-        if v >= 27 {
-            v -= 27;
-        }
-
-        // Step 6: Recover the public key from the signature using rsv components and the message hash
-        let pubkey_bytes = Self::recover_pubkey(&hash, &rs, v).expect("Signature recovery failed");
-
-        // Step 7: Derive Ethereum address from recovered public key
-        let hash_pub = env::keccak256_array(&pubkey_bytes);
-        let recovered_addr = &hash_pub[12..32]; // last 20 bytes of keccak256(pubkey)
-        near_sdk::log!("recovered_addr = 0x{}", hex::encode(recovered_addr));
-
-        // Step 8: Verify that the recovered address matches the provided Ethereum address
-        assert!(
-            recovered_addr == eth_bytes.as_slice(),
-            "Invalid signature"
-        );
-
-        // Step 9: Check if the Ethereum address is already linked to a NEAR account
+        // Step 4: Check if the Ethereum address is already linked to a NEAR account
         let mut linked_accounts = self
             .owner_accounts
             .get(&blockchain)
             .cloned()
             .unwrap_or_else(|| vec![]);
-
-        // Prevent duplicate linking
-        if linked_accounts.iter().any(|record| record == &address) {
-            env::panic_str("Ethereum address already linked to a NEAR account");
+        if linked_accounts.iter().any(|record| record == &owner_address) {
+            panic!("{}", contract_errors::ContractError::LinkedAddressAlreadyExists.message());
         }
 
-        linked_accounts.push(address.clone());
+        // Step 5: Add the new address to the mapping
+        linked_accounts.push(owner_address.clone());
         self.owner_accounts.insert(blockchain, linked_accounts);
         self.nonce = nonce + 1;
 
         // Log event
         env::log_str(&format!(
             "Linked NEAR account {} to Ethereum address {}",
-            account_id, address
+            account_id, owner_address
         ));
     }
 
@@ -129,7 +96,7 @@ impl SmartAccountContract {
 
         // Parse the signature
         let sig_clean = signature.trim_start_matches("0x");
-        let sig_bytes = hex::decode(sig_clean).expect("Invalid signature format");
+        let sig_bytes = hex::decode(sig_clean).expect("hahahah Invalid signature format");
         assert!(
             sig_bytes.len() == 65,
             "Signature must be 65 bytes in hex format"
@@ -209,7 +176,8 @@ mod tests {
     }
 
     #[test]
-    fn test_link_eth_address() {
+    #[should_panic(expected = "E001: unsupported blockchain")]
+    fn test_unsupported_blockchain() {
         // 1. set up environment
         let mut builder = get_context();
         let caller = AccountId::try_from("rektdegen.testnet".to_string()).unwrap();
@@ -218,6 +186,22 @@ mod tests {
         testing_env!(context);
         let mut contract = SmartAccountContract::default();
 
+        // 2. test signature verification success
+        let eth_blockchain = "random_chain".to_string();
+        let eth_address = "0x950918fe5deb16c90a7071d5f3daff3f2e84e0df".to_string();
+        let signature = "0xfce0288ef179953be8cf0d1eb10b2c8f008c591f89deb3425348e6f520cee12e4392c85ee9e81973af97999b84e88886fe12969c39bd663a2cf20725b8deb2a61c".to_string();
+        contract.link_eth_address(eth_blockchain.clone(), eth_address, 1, signature);
+    }
+
+    #[test]
+    fn test_link_eth_address() {
+        // 1. set up environment
+        let mut builder = get_context();
+        let caller = AccountId::try_from("rektdegen.testnet".to_string()).unwrap();
+        builder.signer_account_id(caller.clone());
+        let context = builder.build();
+        testing_env!(context);
+        let mut contract = SmartAccountContract::default();
 
         // 2. test signature verification success
         let eth_blockchain = "eth".to_string();
@@ -229,7 +213,6 @@ mod tests {
         assert!(contract.owner_accounts.get(&eth_blockchain).is_some());
     }
 
-    
     #[test]
     #[should_panic(expected = "Invalid signature")]
     fn test_link_eth_address_invalid_signature() {
