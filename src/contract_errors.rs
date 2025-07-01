@@ -6,6 +6,8 @@ pub enum ContractError {
     SignatureVerificationFailed, // E004
     InvalidSignatureFormat, // E005
     LinkedAddressAlreadyExists, // E006
+    InvalidPublicKeyFormat, // E007
+    UnauthorizedRecoveryAddress, // E008
 }
 
 impl ContractError {
@@ -17,6 +19,8 @@ impl ContractError {
             ContractError::SignatureVerificationFailed => "E004: signature verification failed",
             ContractError::InvalidSignatureFormat => "E005: invalid signature format",
             ContractError::LinkedAddressAlreadyExists => "E006: linked address already exists",
+            ContractError::InvalidPublicKeyFormat => "E007: invalid public key format",
+            ContractError::UnauthorizedRecoveryAddress => "E008: unauthorized recovery address",
         }
     }
 }

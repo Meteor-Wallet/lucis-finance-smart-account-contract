@@ -1,4 +1,4 @@
-use near_sdk::{env, AccountId};
+use near_sdk::{env};
 
 mod eth;
 mod sol;
@@ -12,9 +12,8 @@ pub trait BlockchainVerifier {
     /// Verify that `signature` signs `message` under `pubkey`.
     fn verify_signature(
         &self,
-        current_account_id: AccountId,
-        owner_address: String,
-        nonce: u64,
+        recovery_address: String,
+        message: String,
         signature: String,
     ) -> Result<bool, ContractError>;
 
@@ -29,8 +28,8 @@ pub trait BlockchainVerifier {
 /// An adapter that returns a boxed verifier:
 pub fn get_verifier(chain: &str) -> Result<Box<dyn BlockchainVerifier>, ContractError> {
     match chain.to_lowercase().as_str() {
-        "eth" | "ethereum" => Ok(Box::new(Eth)),
-        "sol" | "solana" => Ok(Box::new(Sol)),
+        "ethereum"  => Ok(Box::new(Eth)),
+        "solana" => Ok(Box::new(Sol)),
         _ => Err(ContractError::UnsupportedBlockchain),
     }
 }

@@ -1,5 +1,3 @@
-use near_sdk::AccountId;
-
 use crate::blockchain_verifiers::BlockchainVerifier;
 use crate::contract_errors::ContractError;
 
@@ -20,9 +18,8 @@ impl BlockchainVerifier for Sol {
 
     fn verify_signature(
         &self,
-        _: AccountId,
         _: String,
-        _: u64,
+        _: String,
         _: String,
     ) -> Result<bool, ContractError> {
         Ok(true)
