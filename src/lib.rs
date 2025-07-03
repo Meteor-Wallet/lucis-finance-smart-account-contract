@@ -1,8 +1,8 @@
 pub mod blockchain_verifiers;
 pub mod contract_errors;
-pub mod types;
 #[cfg(test)]
 mod tests;
+pub mod types;
 
 use crate::blockchain_verifiers::get_verifier;
 use crate::contract_errors::ContractError;
@@ -29,7 +29,6 @@ impl Default for SmartAccountContract {
 
 #[near]
 impl SmartAccountContract {
-
     #[payable]
     #[private]
     pub fn add_recovery_address(
@@ -81,12 +80,12 @@ impl SmartAccountContract {
         // Step 5: Add the new address to the mapping
         current_recovery_addresses.push(recovery_address.clone());
         self.recovery_address
-            .insert(blockchain, current_recovery_addresses);
+            .insert(blockchain.clone(), current_recovery_addresses);
 
         // Log event
         env::log_str(&format!(
-            "Linked NEAR account {} to Ethereum address {}",
-            account_id, recovery_address
+            "Linked NEAR account {} to {} address {}",
+            &account_id, &blockchain, &recovery_address
         ));
     }
 
@@ -132,7 +131,7 @@ impl SmartAccountContract {
             .unwrap_or_else(|e| panic!("{}", e.message()));
 
         env::log_str(&format!(
-            "Account {} recovery: adding new key {} and removing old key",
+            "Account {} recovery: adding new key {}",
             env::current_account_id(),
             new_public_key
         ));
@@ -163,8 +162,7 @@ impl SmartAccountContract {
         } else {
             Err(format!(
                 "Invalid nonce: expected {}, got {}",
-                expected_nonce,
-                input_nonce
+                expected_nonce, input_nonce
             ))
         }
     }
