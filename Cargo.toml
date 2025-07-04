@@ -40,6 +40,8 @@ near-sdk = { version = "5.14", features = ["unstable"] }
 uint = { version = "0.9.3", default-features = false }
 hex = { version = "0.4.3", features = ["serde"] }
 ethabi = { version = "18.0.0", default-features = false }
+ed25519-dalek = "2.1.1"
+bs58 = "0.5.1"
 
 [dev-dependencies]
 near-sdk = { version = "5.14", features = ["unit-testing"] }
