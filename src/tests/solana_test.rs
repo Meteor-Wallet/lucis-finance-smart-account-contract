@@ -1,6 +1,14 @@
 use near_sdk::{testing_env, AccountId};
 
-use crate::SmartAccountContract;
+use crate::{blockchain_verifiers::BlockchainVerifier, contract_errors::ContractError, SmartAccountContract};
+
+#[test]
+fn test_verify_address() {
+    let sol = crate::blockchain_verifiers::Sol;
+    sol.verify_address("EU3KmyMdBhoNewP2t75a1pkMABcBjvPrmReCrenRyCW".to_string()).expect("");
+    sol.verify_address("123".to_string())
+        .expect_err(&ContractError::InvalidAddressFormat.message());
+}
 
 #[test]
 fn test_add_recovery_address() {

@@ -29,6 +29,32 @@ impl Default for SmartAccountContract {
 
 #[near]
 impl SmartAccountContract {
+    pub fn get_message_to_add_recovery_address(
+        &self,
+        blockchain: Blockchain,
+        recovery_address: String,
+    ) -> String {
+        format!(
+            "Link NEAR account {} to {} address {} with nonce {}",
+            env::current_account_id(),
+            blockchain,
+            recovery_address,
+            self.nonce + 1 // The next nonce to be used
+        )
+    }
+
+    pub fn get_message_to_recover(
+        &self,
+        new_public_key: String,
+    ) -> String {
+        format!(
+            "Recover NEAR account {} to new public key {} with nonce {}",
+            env::current_account_id(),
+            new_public_key,
+            self.nonce + 1 // The next nonce to be used
+        )
+    }
+
     #[payable]
     #[private]
     pub fn add_recovery_address(
