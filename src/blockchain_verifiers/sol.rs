@@ -14,11 +14,11 @@ impl BlockchainVerifier for Sol {
 
         let pubkey_bytes: [u8; 32] = pubkey_vec
             .try_into()
-            .map_err(|_| ContractError::InvalidPublicKeyFormat)?;
+            .map_err(|_| ContractError::InvalidNewPublicKeyFormat)?;
 
         VerifyingKey::from_bytes(&pubkey_bytes)
             .map(|_| true)
-            .map_err(|_| ContractError::InvalidPublicKeyFormat)
+            .map_err(|_| ContractError::InvalidNewPublicKeyFormat)
     }
 
     fn verify_signature(
@@ -34,10 +34,10 @@ impl BlockchainVerifier for Sol {
 
         let pubkey_bytes: [u8; 32] = pubkey_vec
             .try_into()
-            .map_err(|_| ContractError::InvalidPublicKeyFormat)?;
+            .map_err(|_| ContractError::InvalidNewPublicKeyFormat)?;
 
         let verifying_key = VerifyingKey::from_bytes(&pubkey_bytes)
-            .map_err(|_| ContractError::InvalidPublicKeyFormat)?;
+            .map_err(|_| ContractError::InvalidNewPublicKeyFormat)?;
 
         // Decode base58 signature
         let signature_vec = bs58::decode(signature)
