@@ -119,7 +119,7 @@ impl SmartAccountContract {
         recovery_address: String,
         signature: String,
         nonce: u64,
-        old_public_key: String,
+        old_public_key: Option<String>,
     ) -> Promise {
         // Step 1: Verify the nonce and blockchain support
         self.verify_nonce(nonce)
@@ -139,8 +139,20 @@ impl SmartAccountContract {
         // Step 4: Verify the and parse the new public key
         let new_parsed_public_key = PublicKey::from_str(&new_public_key)
             .unwrap_or_else(|_| panic!("{}", ContractError::InvalidNewPublicKeyFormat.message()));
-        let old_parsed_public_key = PublicKey::from_str(&old_public_key)
-            .unwrap_or_else(|_| panic!("{}", ContractError::InvalidOldPublicKeyFormat.message()));
+        // Step 4.1: Verify the old public key if provided
+        if let Some(ref old_public_key) = old_public_key {
+            // If an old public key is provided, verify its format
+            let old_parsed_public_key = PublicKey::from_str(old_public_key)
+                .unwrap_or_else(|_| panic!("{}", ContractError::InvalidOldPublicKeyFormat.message()));
+
+            // Ensure the old public key is not the same as the new one
+            assert!(
+                old_parsed_public_key != new_parsed_public_key,
+                "{}",
+                ContractError::SimilarPublicKey.message()
+            );
+        } 
+
 
         // Step 5: Build the message to verify the signature
         let message = format!(
@@ -162,10 +174,15 @@ impl SmartAccountContract {
             new_public_key
         ));
 
-        // Step 7: Schedule the actions: add the new full access key and delete the old key
-        Promise::new(env::current_account_id())
-            .add_full_access_key(new_parsed_public_key)
-            .then(Promise::new(env::current_account_id()).delete_key(old_parsed_public_key))
+        // Step 7: Schedule the actions: add the new full access key and delete the old key if provided
+        let mut promise = Promise::new(env::current_account_id())
+            .add_full_access_key(new_parsed_public_key);
+        if let Some(ref old_public_key) = old_public_key {
+            let old_parsed_public_key = PublicKey::from_str(old_public_key)
+                .unwrap_or_else(|_| panic!("{}", ContractError::InvalidOldPublicKeyFormat.message()));
+            promise = promise.then(Promise::new(env::current_account_id()).delete_key(old_parsed_public_key));
+        }
+        promise
     }
 
     pub fn get_recovery_addresses(&self, blockchain: Blockchain) -> Vec<String> {

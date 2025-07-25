@@ -9,6 +9,7 @@ pub enum ContractError {
     InvalidNewPublicKeyFormat, // E007
     UnauthorizedRecoveryAddress, // E008
     InvalidOldPublicKeyFormat, // E009
+    SimilarPublicKey, // E010
 }
 
 impl ContractError {
@@ -23,6 +24,7 @@ impl ContractError {
             ContractError::InvalidNewPublicKeyFormat => "E007: invalid public key format",
             ContractError::UnauthorizedRecoveryAddress => "E008: unauthorized recovery address",
             ContractError::InvalidOldPublicKeyFormat => "E009: invalid old public key format",
+            ContractError::SimilarPublicKey => "E010: new public key is similar to the old one",
         }
     }
 }

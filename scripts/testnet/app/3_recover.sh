@@ -4,5 +4,5 @@ export NEAR_ENV=testnet
 export CONTRACT_ID="$(cat "$(dirname "$(realpath "$0")")/../neardev/dev-account")"
 
 # Message:
-# Recover NEAR account 2025-07-01_13-51-12_near_recovery.testnet to new public key ed25519:3DBS4ZmGmnPZ4Q15aDML46yfyUFFRKzCuh3NKi5EXErx with nonce 11
-near call "$CONTRACT_ID" recover '{"new_public_key":"ed25519:3DBS4ZmGmnPZ4Q15aDML46yfyUFFRKzCuh3NKi5EXErx","old_public_key":"ed25519:zaxVGDALKMCtYd4r4gNyz7M3uwCMMvboYTnRwmHMBXZ","blockchain":"Ethereum","recovery_address":"0x950918fe5deb16c90a7071d5f3daff3f2e84e0df","signature":"0x9df2c2f840a0e21d59d39ccbfab11325dc5dd88ab9646c6ea993af36c10f341f78659587718ad9769095e83fb945424dc4068fe358ad59b383d664c25c524b361c","nonce":11}' --accountId $CONTRACT_ID --gas 300000000000000
+# Recover NEAR account 2025-07-25_16-53-01_near_recovery.testnet to new public key ed25519:3DBS4ZmGmnPZ4Q15aDML46yfyUFFRKzCuh3NKi5EXErx with nonce 2
+near call "$CONTRACT_ID" recover '{"new_public_key":"ed25519:3DBS4ZmGmnPZ4Q15aDML46yfyUFFRKzCuh3NKi5EXErx","old_public_key":"ed25519:HVqdPrjCz9vNPYEypQK4UJKBu7EyiJekyxWcMra1rEpZ","blockchain":"Ethereum","recovery_address":"0x950918fe5deb16c90a7071d5f3daff3f2e84e0df","signature":"0x98b72542a72d453c3dc4393eb9990cc194a4d05ff542d6bbabb8bf997f25d909267adc99d425d2117ba3163091447d6eea7286f06d784c1d39c8e26e88481f0d1c","nonce":2}' --accountId $CONTRACT_ID --gas 300000000000000
