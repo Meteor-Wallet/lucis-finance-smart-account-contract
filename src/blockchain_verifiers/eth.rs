@@ -11,7 +11,8 @@ impl BlockchainVerifier for Eth {
         let address = address.trim_start_matches("0x").to_lowercase();
 
         // Convert the address to bytes
-        let address_bytes = hex::decode(address).map_err(|_| ContractError::InvalidAddressFormat)?;
+        let address_bytes =
+            hex::decode(address).map_err(|_| ContractError::InvalidAddressFormat)?;
 
         // Check if the address is 20 bytes long (Ethereum address length)
         if address_bytes.len() != 20 {
@@ -27,7 +28,6 @@ impl BlockchainVerifier for Eth {
         message: String,
         signature: String,
     ) -> Result<bool, ContractError> {
-
         // Step 1: Get the hash of the constructed message, this hash is what was signed
         let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
         let mut to_hash = Vec::new();
@@ -50,12 +50,14 @@ impl BlockchainVerifier for Eth {
         }
 
         // Step 3: Recover the public key from the signature using rsv components and the message hash
-        let pubkey_bytes = self.recover_pubkey(&hash, &rs, v).expect("Signature recovery failed");
+        let pubkey_bytes = self
+            .recover_pubkey(&hash, &rs, v)
+            .expect("Signature recovery failed");
 
         // Step 4: Derive Ethereum address from recovered public key
         let hash_pub = env::keccak256_array(&pubkey_bytes);
         let mut recovered_addr = hex::encode(&hash_pub[12..32]); // last 20 bytes of keccak256(pubkey)
-        recovered_addr = format!("0x{}", recovered_addr); 
+        recovered_addr = format!("0x{}", recovered_addr);
         near_sdk::log!("recovered_addr = 0x{}", recovered_addr);
 
         // Step 5: Verify that the recovered address matches the provided Ethereum address

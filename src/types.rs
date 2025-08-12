@@ -7,7 +7,7 @@ pub type BlockchainId = String;
 pub type BlockchainAddress = String;
 
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct RecoveryKey {
+pub struct CrossChainAccessKey {
     pub blockchain: BlockchainId,
     pub address: BlockchainAddress,
     pub nonce: Nonce,

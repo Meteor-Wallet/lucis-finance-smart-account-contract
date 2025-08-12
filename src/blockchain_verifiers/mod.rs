@@ -1,4 +1,4 @@
-use near_sdk::{env};
+use near_sdk::env;
 
 mod eth;
 mod sol;
@@ -28,7 +28,7 @@ pub trait BlockchainVerifier {
 /// An adapter that returns a boxed verifier:
 pub fn get_verifier(chain: &str) -> Result<Box<dyn BlockchainVerifier>, ContractError> {
     match chain.to_lowercase().as_str() {
-        "ethereum"  => Ok(Box::new(Eth)),
+        "ethereum" => Ok(Box::new(Eth)),
         "solana" => Ok(Box::new(Sol)),
         _ => Err(ContractError::UnsupportedBlockchain),
     }
