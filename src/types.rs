@@ -1,8 +1,17 @@
-use near_sdk::{near, PublicKey};
+use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::Base64VecU8;
-pub type Blockchain = String;
+use near_sdk::{near, PublicKey};
 
+pub type Nonce = u64;
+pub type BlockchainId = String;
+pub type BlockchainAddress = String;
 
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct RecoveryKey {
+    pub blockchain: BlockchainId,
+    pub address: BlockchainAddress,
+    pub nonce: Nonce,
+}
 
 #[near(serializers = [json, borsh])]
 pub struct LinkInfo {
@@ -12,7 +21,6 @@ pub struct LinkInfo {
     near_pk: PublicKey,
     nonce: u64,
 }
-
 
 #[near(serializers = [json, borsh])]
 pub struct EcrecoverInput {

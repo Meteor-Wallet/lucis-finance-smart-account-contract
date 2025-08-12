@@ -6,32 +6,81 @@ pub mod types;
 
 use crate::blockchain_verifiers::get_verifier;
 use crate::contract_errors::ContractError;
-use crate::types::Blockchain;
-use near_sdk::store::LookupMap;
-use near_sdk::{env, log, near, Promise, PublicKey};
+use crate::types::{BlockchainAddress, BlockchainId, Nonce, RecoveryKey};
+use borsh::{BorshDeserialize, BorshSerialize};
+use near_sdk::BorshStorageKey;
+use near_sdk::{env, log, near, store::LookupMap, AccountId, Promise, PublicKey};
 use std::str::FromStr;
+
+#[derive(BorshSerialize, BorshDeserialize, BorshStorageKey)]
+pub enum StorageKey {
+    RecoveryKeys,
+}
 
 #[near(contract_state)]
 pub struct SmartAccountContract {
-    /// Reverse mapping from Ethereum address (20 bytes) to NEAR account.
-    recovery_address: LookupMap<Blockchain, Vec<String>>,
-    nonce: u64, // Nonce for the contract, used to prevent replay attacks
+    factory: AccountId,
+    recovery_keys: LookupMap<(BlockchainId, BlockchainAddress), RecoveryKey>,
 }
 
-impl Default for SmartAccountContract {
-    fn default() -> Self {
-        Self {
-            recovery_address: LookupMap::new(b"eth_to_account".to_vec()),
-            nonce: 0, // Initialize nonce to 0
-        }
+impl SmartAccountContract {
+    pub fn internal_generate_nonce(&self) -> Nonce {
+        let seed = env::random_seed();
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(&seed[..8]);
+        u64::from_le_bytes(bytes)
     }
 }
 
 #[near]
 impl SmartAccountContract {
+    #[init]
+    pub fn new(blockchain_id: BlockchainId, blockchain_address: BlockchainAddress) -> Self {
+        let mut contract = Self {
+            factory: env::predecessor_account_id(),
+            recovery_keys: LookupMap::new(StorageKey::RecoveryKeys),
+        };
+
+        contract.recovery_keys.insert(
+            (blockchain_id.clone(), blockchain_address.clone()),
+            RecoveryKey {
+                blockchain: blockchain_id,
+                address: blockchain_address,
+                nonce: contract.internal_generate_nonce(),
+            },
+        );
+
+        contract
+    }
+}
+
+#[near]
+impl SmartAccountContract {
+    pub fn get_message_to_function_call(
+        &self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        contract_id: AccountId,
+        function_name: String,
+        args: String,
+        attached_deposit: String,
+        gas: String,
+    ) -> String {
+        format!(
+            "Call function {} on contract {} with args {} and attached deposit {} on {} address {} with nonce {}",
+            function_name,
+            contract_id,
+            args,
+            attached_deposit,
+            blockchain,
+            recovery_address,
+            self.nonce + 1 // The next nonce to be used
+        )
+    }
+
     pub fn get_message_to_add_recovery_address(
         &self,
-        blockchain: Blockchain,
+        blockchain: BlockchainId,
         recovery_address: String,
     ) -> String {
         format!(
@@ -56,7 +105,7 @@ impl SmartAccountContract {
     #[private]
     pub fn add_recovery_address(
         &mut self,
-        blockchain: Blockchain,
+        blockchain: BlockchainId,
         recovery_address: String,
         signature: String,
         nonce: u64,
@@ -115,7 +164,7 @@ impl SmartAccountContract {
     pub fn recover(
         &mut self,
         new_public_key: String,
-        blockchain: Blockchain,
+        blockchain: BlockchainId,
         recovery_address: String,
         signature: String,
         nonce: u64,
@@ -168,7 +217,7 @@ impl SmartAccountContract {
             .then(Promise::new(env::current_account_id()).delete_key(old_parsed_public_key))
     }
 
-    pub fn get_recovery_addresses(&self, blockchain: Blockchain) -> Vec<String> {
+    pub fn get_recovery_addresses(&self, blockchain: BlockchainId) -> Vec<String> {
         self.recovery_address
             .get(&blockchain)
             .cloned()
@@ -197,7 +246,7 @@ impl SmartAccountContract {
 
     fn is_address_registered_for_recovery(
         &self,
-        blockchain: Blockchain,
+        blockchain: BlockchainId,
         recovery_address: String,
     ) -> bool {
         // Check if the address is already linked to the NEAR account
