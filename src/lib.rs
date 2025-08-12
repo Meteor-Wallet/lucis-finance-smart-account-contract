@@ -8,7 +8,7 @@ use crate::blockchain_verifiers::get_verifier;
 use crate::contract_errors::ContractError;
 use crate::types::{BlockchainAddress, BlockchainId, Nonce, RecoveryKey};
 use borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::BorshStorageKey;
+use near_sdk::{BorshStorageKey, Gas, NearToken};
 use near_sdk::{env, log, near, store::LookupMap, AccountId, Promise, PublicKey};
 use std::str::FromStr;
 
@@ -56,48 +56,69 @@ impl SmartAccountContract {
 
 #[near]
 impl SmartAccountContract {
-    pub fn get_message_to_function_call(
+    pub fn get_message_for_function_call(
         &self,
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
         contract_id: AccountId,
         function_name: String,
         args: String,
-        attached_deposit: String,
-        gas: String,
+        attached_deposit: NearToken,
+        gas: Gas,
     ) -> String {
+        assert!(
+            contract_id != env::current_account_id(),
+            "Cannot call a function on the smart account itself"
+        );
+
+        let recovery_key = self
+            .recovery_keys
+            .get(&(blockchain_id.clone(), blockchain_address.clone()))
+            .expect("Recovery key not found");
+
         format!(
-            "Call function {} on contract {} with args {} and attached deposit {} on {} address {} with nonce {}",
-            function_name,
+            "Call function {} on contract {} with args {} and attached deposit {} and {} TGas from NEAR account {} linked to {} address {} with nonce {}",
+            function_name,  
             contract_id,
             args,
-            attached_deposit,
-            blockchain,
-            recovery_address,
-            self.nonce + 1 // The next nonce to be used
+            attached_deposit.exact_amount_display(),
+            gas.as_tgas(),
+            env::current_account_id(),
+            blockchain_id,
+            blockchain_address,
+            recovery_key.nonce
         )
     }
 
-    pub fn get_message_to_add_recovery_address(
+    pub fn get_message_for_access_key_with_allowance(
         &self,
-        blockchain: BlockchainId,
-        recovery_address: String,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        public_key: String,
+        contract_id: AccountId,
+        function_names: String,
+        allowance: NearToken,
     ) -> String {
-        format!(
-            "Link NEAR account {} to {} address {} with nonce {}",
-            env::current_account_id(),
-            blockchain,
-            recovery_address,
-            self.nonce + 1 // The next nonce to be used
-        )
-    }
+        assert!(
+            contract_id != env::current_account_id(),
+            "Cannot grant access key to the smart account itself"
+        );
 
-    pub fn get_message_to_recover(&self, new_public_key: String) -> String {
+        let recovery_key = self
+            .recovery_keys
+            .get(&(blockchain_id.clone(), blockchain_address.clone()))
+            .expect("Recovery key not found");
+
         format!(
-            "Recover NEAR account {} to new public key {} with nonce {}",
+            "Grant access key {} to contract {} with function names {} and allowance {} from NEAR account {} linked to {} address {} with nonce {}",
+            public_key,
+            contract_id,
+            function_names,
+            allowance.exact_amount_display(),
             env::current_account_id(),
-            new_public_key,
-            self.nonce + 1 // The next nonce to be used
+            blockchain_id,
+            blockchain_address,
+            recovery_key.nonce
         )
     }
 
