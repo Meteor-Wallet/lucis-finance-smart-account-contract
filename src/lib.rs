@@ -2,6 +2,8 @@ pub mod blockchain_verifiers;
 pub mod contract_errors;
 pub mod types;
 
+mod temp;
+
 use crate::blockchain_verifiers::get_verifier;
 use crate::contract_errors::ContractError;
 use crate::types::{BlockchainAddress, BlockchainId, CrossChainAccessKey, Nonce};
@@ -203,9 +205,7 @@ impl SmartAccountContract {
             .expect(ContractError::SignatureVerificationFailed.message());
 
         let remaining_gas = env::prepaid_gas()
-            .checked_sub(env::used_gas())
-            .expect(ContractError::FailedToCalculateRemainingGas.message())
-            .checked_sub(Gas::from_tgas(1))
+            .checked_sub(Gas::from_tgas(10))
             .expect(ContractError::NotEnoughGasLeft.message());
 
         ext_self::ext(env::current_account_id())
@@ -259,9 +259,7 @@ impl SmartAccountContract {
             .expect(ContractError::SignatureVerificationFailed.message());
 
         let remaining_gas = env::prepaid_gas()
-            .checked_sub(env::used_gas())
-            .expect(ContractError::FailedToCalculateRemainingGas.message())
-            .checked_sub(Gas::from_tgas(1))
+            .checked_sub(Gas::from_tgas(10))
             .expect(ContractError::NotEnoughGasLeft.message());
 
         ext_self::ext(env::current_account_id())
