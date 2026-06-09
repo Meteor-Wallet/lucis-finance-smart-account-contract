@@ -1,3 +1,5 @@
+use std::str::FromStr as _;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use contract_errors::*;
 use near_sdk::json_types::{Base64VecU8, U64};
@@ -126,6 +128,23 @@ impl FactoryContract {
         self.internal_generate_account_id(blockchain_id, blockchain_address)
     }
 
+    // Dew Finance might not be the only user who want to use this multi chain account system
+    // Any of the partners that we approve them using our contract, we will add their brand here
+    pub fn add_brand(&mut self, brand: String) {
+        assert_eq!(
+            env::predecessor_account_id(),
+            self.owner_id,
+            "{}",
+            ContractError::MustBeOwner.message()
+        );
+
+        if self.branding_counter.get(&brand).is_some() {
+            env::panic_str(ContractError::BrandExists.message());
+        }
+
+        self.branding_counter.insert(brand, 0);
+    }
+
     #[payable]
     pub fn create_account(
         &mut self,
@@ -133,11 +152,19 @@ impl FactoryContract {
         blockchain_address: BlockchainAddress,
         deadline: U64,
         signature: String,
+        brand: Option<String>,
+        account_id: Option<String>,
     ) -> Promise {
         assert!(
             env::block_timestamp() <= deadline.0,
             "{}",
             ContractError::SignatureExpired.message()
+        );
+
+        assert!(
+            brand.is_none() || account_id.is_none(),
+            "{}",
+            ContractError::BrandOrAccountIdExclusivity.message()
         );
 
         let deposit = env::attached_deposit();
@@ -161,8 +188,55 @@ impl FactoryContract {
             signature,
         );
 
-        let account_id =
-            self.internal_generate_account_id(blockchain_id.clone(), blockchain_address.clone());
+        let account_id = match brand {
+            Some(brand) => {
+                let counter = self
+                    .branding_counter
+                    .get(&brand)
+                    .expect(ContractError::InvalidBrand.message())
+                    + 1;
+
+                // Even if account creation failed
+                // A used counter should remain being used
+                // This is to prevent hardlock if the brand and counter already being created for certain unknown reason
+                self.branding_counter.insert(brand.clone(), counter);
+
+                AccountId::from_str(
+                    format!("{}-{}.{}", brand, counter, env::current_account_id()).as_str(),
+                )
+                .expect(ContractError::InvalidAccountId.message())
+            }
+            None => match account_id {
+                Some(account_id) => {
+                    // To prevent someone trying to mimic account created with certain brand
+                    assert!(
+                        !account_id.contains('-'),
+                        "{}",
+                        ContractError::NoDashesAllowed.message()
+                    );
+                    AccountId::from_str(
+                        format!("{}.{}", account_id, env::current_account_id()).as_str(),
+                    )
+                    .expect(ContractError::InvalidAccountId.message())
+                }
+                None => self.internal_generate_account_id(
+                    blockchain_id.clone(),
+                    blockchain_address.clone(),
+                ),
+            },
+        };
+
+        // Option 1:
+        // If the account_id already exists in lookup map, no need to try create account
+        // Likely the account creation will failed, so directly panic here to save gas
+        //
+        // Option 2:
+        // But since we expected we will never double create
+        // So can comment out this part to save gas
+        // The account creation will failed anyway if double use account id
+        // if self.account_id_to_wallet.get(&account_id).is_some() {
+        //     env::panic_str(ContractError::InvalidAccountId.message());
+        // }
 
         Promise::new(account_id.clone())
             .create_account()
@@ -213,7 +287,7 @@ impl FactoryContract {
                     .or_insert_with(Vec::new)
                     .push((blockchain_id, blockchain_address));
             }
-            _ => env::log_str("Account creation failed"),
+            _ => env::panic_str(ContractError::AccountCreationFailed.message()),
         }
     }
 }

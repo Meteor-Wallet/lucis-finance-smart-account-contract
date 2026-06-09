@@ -13,6 +13,11 @@ pub enum ContractError {
     InvalidCodeHashLength,       // E028
     InvalidMessageLen,           // E029
     InvalidPromiseResultCount,   // E030
+    InvalidBrand,                // E031
+    NoDashesAllowed,             // E032
+    BrandOrAccountIdExclusivity, // E033
+    BrandExists,                 // E034
+    AccountCreationFailed,       // E035
 }
 
 impl ContractError {
@@ -31,6 +36,13 @@ impl ContractError {
             ContractError::InvalidCodeHashLength => "E028: invalid code hash length",
             ContractError::InvalidMessageLen => "E029: invalid message length",
             ContractError::InvalidPromiseResultCount => "E030: invalid promise result count",
+            ContractError::InvalidBrand => "E031: invalid brand",
+            ContractError::NoDashesAllowed => "E032: account_id cannot contain dashes",
+            ContractError::BrandOrAccountIdExclusivity => {
+                "E033: cannot specify both brand and account_id"
+            }
+            ContractError::BrandExists => "E034: brand already exists",
+            ContractError::AccountCreationFailed => "E035: account creation failed",
         }
     }
 }
