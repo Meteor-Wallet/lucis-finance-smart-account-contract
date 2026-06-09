@@ -16,6 +16,16 @@ const SMART_CONTRACT_INIT_GAS: Gas = Gas::from_tgas(50);
 #[derive(BorshSerialize, BorshDeserialize, BorshStorageKey)]
 pub enum StorageKey {
     CodeHashUpgradeTarget,
+    BrandingCounter,
+    WalletToAccountId,
+    AccountIdToWallet,
+}
+
+#[near(contract_state)]
+pub struct FactoryContractV1 {
+    pub owner_id: AccountId,
+    pub latest_code_hash: CryptoHash,
+    pub code_hash_upgrade_target: LookupMap<CryptoHash, CryptoHash>,
 }
 
 #[near(contract_state)]
@@ -23,6 +33,9 @@ pub struct FactoryContract {
     pub owner_id: AccountId,
     pub latest_code_hash: CryptoHash,
     pub code_hash_upgrade_target: LookupMap<CryptoHash, CryptoHash>,
+    pub branding_counter: LookupMap<String, u64>,
+    pub wallet_to_account_id: LookupMap<(BlockchainId, BlockchainAddress), Array<AccountId>>,
+    pub account_id_to_wallet: LookupMap<AccountId, Array<(BlockchainId, BlockchainAddress)>>,
 }
 
 impl Default for FactoryContract {
@@ -43,6 +56,25 @@ impl FactoryContract {
                 .try_into()
                 .expect(ContractError::InvalidCodeHashLength.message()),
             code_hash_upgrade_target: LookupMap::new(StorageKey::CodeHashUpgradeTarget),
+            branding_counter: LookupMap::new(StorageKey::BrandingCounter),
+            wallet_to_account_id: LookupMap::new(StorageKey::WalletToAccountId),
+            account_id_to_wallet: LookupMap::new(StorageKey::AccountIdToWallet),
+        }
+    }
+
+    #[init(ignore_state)]
+    pub fn migrate() -> Self {
+        let old_state: FactoryContractV1 = env::state_read()
+            .expect("Failed to read state")
+            .expect("State is empty");
+
+        Self {
+            owner_id: old_state.owner_id,
+            latest_code_hash: old_state.latest_code_hash,
+            code_hash_upgrade_target: old_state.code_hash_upgrade_target,
+            branding_counter: LookupMap::new(StorageKey::BrandingCounter),
+            wallet_to_account_id: LookupMap::new(StorageKey::WalletToAccountId),
+            account_id_to_wallet: LookupMap::new(StorageKey::AccountIdToWallet),
         }
     }
 
