@@ -701,6 +701,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dew-abstract-account-factory-v2"
+version = "1.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "borsh",
+ "bs58 0.5.1",
+ "ethabi",
+ "getrandom 0.2.16",
+ "hex",
+ "near-sdk",
+ "near-workspaces",
+ "ripemd",
+ "schemars 1.0.4",
+ "serde_json",
+ "stellar-strkey",
+ "tokio",
+ "uint 0.10.0",
+]
+
+[[package]]
 name = "dew-abstract-account-v1"
 version = "1.0.0"
 dependencies = [

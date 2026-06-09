@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "factory-v1",
+    "factory-v2",
     "v1",
     "v2"
 ]

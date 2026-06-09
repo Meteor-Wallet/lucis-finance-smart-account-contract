@@ -12,6 +12,7 @@ pub enum ContractError {
     InsufficientDeposit,         // E022
     InvalidCodeHashLength,       // E028
     InvalidMessageLen,           // E029
+    InvalidPromiseResultCount,   // E030
 }
 
 impl ContractError {
@@ -29,6 +30,7 @@ impl ContractError {
             ContractError::InsufficientDeposit => "E022: insufficient deposit",
             ContractError::InvalidCodeHashLength => "E028: invalid code hash length",
             ContractError::InvalidMessageLen => "E029: invalid message length",
+            ContractError::InvalidPromiseResultCount => "E030: invalid promise result count",
         }
     }
 }
