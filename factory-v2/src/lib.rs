@@ -145,6 +145,23 @@ impl FactoryContract {
         self.branding_counter.insert(brand, 0);
     }
 
+    pub fn list_wallets_for_account_id(
+        &self,
+        account_id: AccountId,
+    ) -> &Vec<(BlockchainId, BlockchainAddress)> {
+        self.account_id_to_wallet.get(&account_id).unwrap()
+    }
+
+    pub fn list_account_ids_for_wallet(
+        &self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) -> &Vec<AccountId> {
+        self.wallet_to_account_id
+            .get(&(blockchain_id, blockchain_address))
+            .unwrap()
+    }
+
     pub fn add_wallet(
         &mut self,
         blockchain_id: BlockchainId,
