@@ -62,7 +62,7 @@ impl SmartAccountContract {
 
         match blockchain_id.to_lowercase().as_str() {
             "btc" => self.internal_verify_btc_signature(blockchain_address, signature, message),
-            "ethereum" | "bnb" => {
+            "ethereum" | "bnb" | "evm" => {
                 self.internal_verify_evm_signature(blockchain_address, signature, message)
             }
             "solana" => {
