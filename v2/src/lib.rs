@@ -97,6 +97,59 @@ impl SmartAccountContract {
         .unwrap()
     }
 
+    pub fn message_for_add_wallet(
+        &self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        new_wallet_blockchain_id: BlockchainId,
+        new_wallet_blockchain_address: BlockchainAddress,
+    ) -> String {
+        let cross_chain_access_key = self
+            .cross_chain_access_keys
+            .get(&(blockchain_id.clone(), blockchain_address.clone()))
+            .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
+
+        serde_json::to_string(&json!({
+            "blockchain_id": blockchain_id,
+            "blockchain_address": blockchain_address,
+            "new_wallet_blockchain_id": new_wallet_blockchain_id,
+            "new_wallet_blockchain_address": new_wallet_blockchain_address,
+            "nonce": cross_chain_access_key.nonce.wrapping_add(1),
+        }))
+        .unwrap()
+    }
+
+    pub fn message_for_remove_wallet(
+        &self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        wallet_blockchain_id_to_be_removed: BlockchainId,
+        wallet_blockchain_address_to_be_removed: BlockchainAddress,
+        force: Option<bool>,
+    ) -> String {
+        let cross_chain_access_key = self
+            .cross_chain_access_keys
+            .get(&(blockchain_id.clone(), blockchain_address.clone()))
+            .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
+
+        self.cross_chain_access_keys
+            .get(&(
+                wallet_blockchain_id_to_be_removed.clone(),
+                wallet_blockchain_address_to_be_removed.clone(),
+            ))
+            .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
+
+        serde_json::to_string(&json!({
+            "blockchain_id": blockchain_id,
+            "blockchain_address": blockchain_address,
+            "wallet_blockchain_id_to_be_removed": wallet_blockchain_id_to_be_removed,
+            "wallet_blockchain_address_to_be_removed": wallet_blockchain_address_to_be_removed,
+            "force": force.unwrap_or(false),
+            "nonce": cross_chain_access_key.nonce.wrapping_add(1),
+        }))
+        .unwrap()
+    }
+
     pub fn blind_message_for_sign_transaction(
         &self,
         blockchain_id: BlockchainId,
@@ -107,6 +160,46 @@ impl SmartAccountContract {
             blockchain_id.clone(),
             blockchain_address.clone(),
             transaction,
+        );
+
+        let sha256_hash = env::sha256(message.as_bytes());
+
+        bs58::encode(sha256_hash).into_string()
+    }
+
+    pub fn blind_message_for_add_wallet(
+        &self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        new_wallet_blockchain_id: BlockchainId,
+        new_wallet_blockchain_address: BlockchainAddress,
+    ) -> String {
+        let message = self.message_for_add_wallet(
+            blockchain_id.clone(),
+            blockchain_address.clone(),
+            new_wallet_blockchain_id,
+            new_wallet_blockchain_address,
+        );
+
+        let sha256_hash = env::sha256(message.as_bytes());
+
+        bs58::encode(sha256_hash).into_string()
+    }
+
+    pub fn blind_message_for_remove_wallet(
+        &self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        wallet_blockchain_id_to_be_removed: BlockchainId,
+        wallet_blockchain_address_to_be_removed: BlockchainAddress,
+        force: Option<bool>,
+    ) -> String {
+        let message = self.message_for_remove_wallet(
+            blockchain_id.clone(),
+            blockchain_address.clone(),
+            wallet_blockchain_id_to_be_removed,
+            wallet_blockchain_address_to_be_removed,
+            force,
         );
 
         let sha256_hash = env::sha256(message.as_bytes());
@@ -148,5 +241,133 @@ impl SmartAccountContract {
         self.internal_update_nonce(blockchain_id, blockchain_address);
 
         self.internal_generate_promise(transaction)
+    }
+
+    pub fn add_wallet(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        new_wallet_blockchain_id: BlockchainId,
+        new_wallet_blockchain_address: BlockchainAddress,
+        signature: String,
+        blind_message: Option<bool>,
+    ) {
+        let blind_message = blind_message.unwrap_or(false);
+
+        let message = if blind_message {
+            self.blind_message_for_add_wallet(
+                blockchain_id.clone(),
+                blockchain_address.clone(),
+                new_wallet_blockchain_id.clone(),
+                new_wallet_blockchain_address.clone(),
+            )
+        } else {
+            self.message_for_add_wallet(
+                blockchain_id.clone(),
+                blockchain_address.clone(),
+                new_wallet_blockchain_id.clone(),
+                new_wallet_blockchain_address.clone(),
+            )
+        };
+
+        self.internal_verify_signature(
+            blockchain_id.clone(),
+            blockchain_address.clone(),
+            message,
+            signature,
+        );
+
+        self.internal_update_nonce(blockchain_id, blockchain_address);
+
+        let cross_chain_access_key = CrossChainAccessKey {
+            blockchain: new_wallet_blockchain_id.clone(),
+            address: new_wallet_blockchain_address.clone(),
+            nonce: 0,
+            last_usable_nonce: u64::MAX,
+        };
+
+        self.cross_chain_access_keys.insert(
+            (
+                cross_chain_access_key.blockchain.clone(),
+                cross_chain_access_key.address.clone(),
+            ),
+            cross_chain_access_key,
+        );
+
+        Promise::new(self.factory_contract_id.clone()).function_call(
+            "add_wallet".to_string(),
+            serde_json::to_vec(&json!({
+                "blockchain_id": new_wallet_blockchain_id,
+                "blockchain_address": new_wallet_blockchain_address,
+            }))
+            .unwrap(),
+            NearToken::from_near(0),
+            Gas::from_tgas(5),
+        );
+    }
+
+    pub fn remove_wallet(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        wallet_blockchain_id_to_be_removed: BlockchainId,
+        wallet_blockchain_address_to_be_removed: BlockchainAddress,
+        force: Option<bool>,
+        signature: String,
+        blind_message: Option<bool>,
+    ) {
+        let blind_message = blind_message.unwrap_or(false);
+
+        let message = if blind_message {
+            self.blind_message_for_remove_wallet(
+                blockchain_id.clone(),
+                blockchain_address.clone(),
+                wallet_blockchain_id_to_be_removed.clone(),
+                wallet_blockchain_address_to_be_removed.clone(),
+                force,
+            )
+        } else {
+            self.message_for_remove_wallet(
+                blockchain_id.clone(),
+                blockchain_address.clone(),
+                wallet_blockchain_id_to_be_removed.clone(),
+                wallet_blockchain_address_to_be_removed.clone(),
+                force,
+            )
+        };
+
+        self.internal_verify_signature(
+            blockchain_id.clone(),
+            blockchain_address.clone(),
+            message,
+            signature,
+        );
+
+        self.internal_update_nonce(blockchain_id.clone(), blockchain_address.clone());
+
+        if !force.unwrap_or(false) {
+            assert!(
+                blockchain_id != wallet_blockchain_id_to_be_removed
+                    || blockchain_address != wallet_blockchain_address_to_be_removed,
+                "{}",
+                ContractError::CanNotRevokeSelf.message()
+            );
+        }
+
+        self.cross_chain_access_keys.remove(&(
+            wallet_blockchain_id_to_be_removed.clone(),
+            wallet_blockchain_address_to_be_removed.clone(),
+        ));
+
+        Promise::new(self.factory_contract_id.clone()).function_call(
+            "remove_wallet".to_string(),
+            serde_json::to_vec(&json!({
+                "blockchain_id": wallet_blockchain_id_to_be_removed,
+                "blockchain_address": wallet_blockchain_address_to_be_removed,
+            }))
+            .unwrap(),
+            NearToken::from_near(0),
+            Gas::from_tgas(5),
+        );
     }
 }

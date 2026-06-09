@@ -17,6 +17,7 @@ pub enum ContractError {
     NoUpgradeAvailable,              // E026
     NonceNearlyExhausted,            // E027
     InvalidMessageLen,               // E029
+    CanNotRevokeSelf,                // E036
 }
 
 impl ContractError {
@@ -41,6 +42,7 @@ impl ContractError {
             ContractError::NoUpgradeAvailable => "E026: no upgrade available",
             ContractError::NonceNearlyExhausted => "E027: nonce nearly exhausted, the last few usable nonce need to be reserved for adding new keys",
             ContractError::InvalidMessageLen => "E029: invalid message length",
+            ContractError::CanNotRevokeSelf => "E036: cannot revoke the access key that is used to sign the message",
         }
     }
 }

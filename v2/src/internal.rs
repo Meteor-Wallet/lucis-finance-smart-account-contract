@@ -57,6 +57,12 @@ impl SmartAccountContract {
             ContractError::EmptyTransaction.message()
         );
 
+        assert!(
+            transaction.receiver_id != self.factory_contract_id,
+            "{}",
+            ContractError::ActionNotAllowed.message()
+        );
+
         if transaction.receiver_id == env::current_account_id() {
             for action in &transaction.actions {
                 match action {

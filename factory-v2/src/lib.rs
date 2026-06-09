@@ -145,6 +145,53 @@ impl FactoryContract {
         self.branding_counter.insert(brand, 0);
     }
 
+    pub fn add_wallet(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) {
+        let account_id = env::predecessor_account_id();
+
+        if self.account_id_to_wallet.get(&account_id).is_none() {
+            env::panic_str(ContractError::InvalidAccountId.message());
+        }
+
+        self.wallet_to_account_id
+            .entry((blockchain_id.clone(), blockchain_address.clone()))
+            .or_insert_with(Vec::new)
+            .push(account_id.clone());
+
+        self.account_id_to_wallet
+            .entry(account_id)
+            .or_insert_with(Vec::new)
+            .push((blockchain_id, blockchain_address));
+    }
+
+    pub fn remove_wallet(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) {
+        let account_id = env::predecessor_account_id();
+
+        if self.account_id_to_wallet.get(&account_id).is_none() {
+            env::panic_str(ContractError::InvalidAccountId.message());
+        }
+
+        self.wallet_to_account_id
+            .entry((blockchain_id.clone(), blockchain_address.clone()))
+            .and_modify(|account_ids| {
+                account_ids.retain(|id| id != &account_id);
+            });
+
+        self.account_id_to_wallet
+            .entry(account_id)
+            .and_modify(|wallets| {
+                wallets
+                    .retain(|(id, address)| id != &blockchain_id || address != &blockchain_address);
+            });
+    }
+
     #[payable]
     pub fn create_account(
         &mut self,
