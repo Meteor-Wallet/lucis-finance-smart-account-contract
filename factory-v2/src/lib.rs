@@ -1,5 +1,3 @@
-use std::str::FromStr as _;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use contract_errors::*;
 use near_sdk::json_types::{Base64VecU8, U64};
@@ -114,10 +112,18 @@ impl FactoryContract {
         &self,
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
+        brand: Option<String>,
+        account_id: Option<String>,
     ) -> String {
         let deadline = env::block_timestamp().checked_add(300_000_000_000).unwrap(); // 5 minutes from now
 
-        self.internal_message_for_create_account(blockchain_id, blockchain_address, deadline)
+        self.internal_message_for_create_account(
+            blockchain_id,
+            blockchain_address,
+            brand,
+            account_id,
+            deadline,
+        )
     }
 
     pub fn preview_account_id(
@@ -225,12 +231,6 @@ impl FactoryContract {
             ContractError::SignatureExpired.message()
         );
 
-        assert!(
-            brand.is_none() || account_id.is_none(),
-            "{}",
-            ContractError::BrandOrAccountIdExclusivity.message()
-        );
-
         let deposit = env::attached_deposit();
 
         assert!(
@@ -242,6 +242,8 @@ impl FactoryContract {
         let message = self.internal_message_for_create_account(
             blockchain_id.clone(),
             blockchain_address.clone(),
+            brand.clone(),
+            account_id.clone(),
             deadline.0,
         );
 
@@ -252,43 +254,23 @@ impl FactoryContract {
             signature,
         );
 
-        let account_id = match brand {
-            Some(brand) => {
-                let counter = self
-                    .branding_counter
-                    .get(&brand)
-                    .expect(ContractError::InvalidBrand.message())
-                    + 1;
+        let resolved_account_id = self.internal_resolve_account_id(
+            blockchain_id.clone(),
+            blockchain_address.clone(),
+            brand.clone(),
+            account_id,
+        );
 
-                // Even if account creation failed
-                // A used counter should remain being used
-                // This is to prevent hardlock if the brand and counter already being created for certain unknown reason
-                self.branding_counter.insert(brand.clone(), counter);
+        if let Some(brand) = brand {
+            let counter = self
+                .branding_counter
+                .get(&brand)
+                .expect(ContractError::InvalidBrand.message())
+                + 1;
 
-                AccountId::from_str(
-                    format!("{}-{}.{}", brand, counter, env::current_account_id()).as_str(),
-                )
-                .expect(ContractError::InvalidAccountId.message())
-            }
-            None => match account_id {
-                Some(account_id) => {
-                    // To prevent someone trying to mimic account created with certain brand
-                    assert!(
-                        !account_id.contains('-'),
-                        "{}",
-                        ContractError::NoDashesAllowed.message()
-                    );
-                    AccountId::from_str(
-                        format!("{}.{}", account_id, env::current_account_id()).as_str(),
-                    )
-                    .expect(ContractError::InvalidAccountId.message())
-                }
-                None => self.internal_generate_account_id(
-                    blockchain_id.clone(),
-                    blockchain_address.clone(),
-                ),
-            },
-        };
+            // Even if account creation failed, a used counter should remain used.
+            self.branding_counter.insert(brand, counter);
+        }
 
         // Option 1:
         // If the account_id already exists in lookup map, no need to try create account
@@ -302,7 +284,7 @@ impl FactoryContract {
         //     env::panic_str(ContractError::InvalidAccountId.message());
         // }
 
-        Promise::new(account_id.clone())
+        Promise::new(resolved_account_id.clone())
             .create_account()
             .transfer(deposit)
             .use_global_contract(self.latest_code_hash.into())
@@ -322,7 +304,11 @@ impl FactoryContract {
             .then(
                 Self::ext(env::current_account_id())
                     .with_static_gas(ACCOUNT_CREATED_CALLBACK_GAS)
-                    .account_created_callback(blockchain_id, blockchain_address, account_id),
+                    .account_created_callback(
+                        blockchain_id,
+                        blockchain_address,
+                        resolved_account_id,
+                    ),
             )
     }
 
