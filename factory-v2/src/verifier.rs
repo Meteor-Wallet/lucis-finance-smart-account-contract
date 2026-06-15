@@ -273,7 +273,7 @@ impl FactoryContract {
 
         let header = sig[0];
         assert!(
-            (27..=34).contains(&header),
+            matches!(header, 27 | 28 | 31 | 32),
             "{}",
             ContractError::InvalidSignatureFormat.message()
         );
