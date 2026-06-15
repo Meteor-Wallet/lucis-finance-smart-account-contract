@@ -329,6 +329,11 @@ impl FactoryContract {
         if v >= 27 {
             v -= 27;
         }
+        assert!(
+            v <= 1,
+            "{}",
+            ContractError::InvalidSignatureFormat.message()
+        );
 
         // Step 3: Recover the public key from the signature using rsv components and the message hash
         let pubkey_bytes = env::ecrecover(&hash, &rs, v, true)
@@ -465,6 +470,11 @@ impl FactoryContract {
         if v >= 27 {
             v -= 27;
         }
+        assert!(
+            v <= 1,
+            "{}",
+            ContractError::InvalidSignatureFormat.message()
+        );
 
         // Step 3: Recover the public key
         let pubkey_bytes = env::ecrecover(&hash, &rs, v, true)
