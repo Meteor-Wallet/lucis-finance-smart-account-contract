@@ -352,6 +352,8 @@ impl FactoryContract {
         recovered_addr = format!("0x{}", recovered_addr);
 
         // Step 5: Verify that the recovered address matches the provided Ethereum address
+        // Keep the 0x prefix strict: create_account reaches this verifier before deploying, so a
+        // no-prefix EVM address fails here instead of creating an unusable abstract account.
         assert!(
             recovered_addr.eq_ignore_ascii_case(&blockchain_address),
             "{}",

@@ -360,6 +360,8 @@ impl SmartAccountContract {
         recovered_addr = format!("0x{}", recovered_addr);
 
         // Step 5: Verify that the recovered address matches the provided Ethereum address
+        // Keep the 0x prefix strict. factory-v2 uses this verifier during create_account, so a
+        // no-prefix EVM address is rejected before deployment rather than creating an unusable account.
         assert!(
             recovered_addr.to_lowercase() == blockchain_address.to_lowercase(),
             "{}",
