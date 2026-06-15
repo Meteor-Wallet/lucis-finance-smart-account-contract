@@ -109,6 +109,17 @@ impl SmartAccountContract {
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
             .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
 
+        assert!(
+            self.cross_chain_access_keys
+                .get(&(
+                    new_wallet_blockchain_id.clone(),
+                    new_wallet_blockchain_address.clone()
+                ))
+                .is_none(),
+            "{}",
+            ContractError::WalletAlreadyRegistered.message()
+        );
+
         serde_json::to_string(&json!({
             "blockchain_id": blockchain_id,
             "blockchain_address": blockchain_address,
@@ -269,6 +280,17 @@ impl SmartAccountContract {
                 new_wallet_blockchain_address.clone(),
             )
         };
+
+        assert!(
+            self.cross_chain_access_keys
+                .get(&(
+                    new_wallet_blockchain_id.clone(),
+                    new_wallet_blockchain_address.clone()
+                ))
+                .is_none(),
+            "{}",
+            ContractError::WalletAlreadyRegistered.message()
+        );
 
         self.internal_verify_signature(
             blockchain_id.clone(),

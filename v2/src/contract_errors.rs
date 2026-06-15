@@ -18,6 +18,7 @@ pub enum ContractError {
     NonceNearlyExhausted,            // E027
     InvalidMessageLen,               // E029
     CanNotRevokeSelf,                // E036
+    WalletAlreadyRegistered,         // E037
 }
 
 impl ContractError {
@@ -43,6 +44,7 @@ impl ContractError {
             ContractError::NonceNearlyExhausted => "E027: nonce nearly exhausted, the last few usable nonce need to be reserved for adding new keys",
             ContractError::InvalidMessageLen => "E029: invalid message length",
             ContractError::CanNotRevokeSelf => "E036: cannot revoke the access key that is used to sign the message",
+            ContractError::WalletAlreadyRegistered => "E037: wallet already registered",
         }
     }
 }
