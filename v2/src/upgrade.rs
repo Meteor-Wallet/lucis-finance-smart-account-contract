@@ -34,7 +34,8 @@ impl SmartAccountContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) -> String {
-        self.cross_chain_access_keys
+        let cross_chain_access_key = self
+            .cross_chain_access_keys
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
             .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
 
@@ -42,6 +43,7 @@ impl SmartAccountContract {
             "blockchain_id": blockchain_id,
             "blockchain_address": blockchain_address,
             "action": "upgrade",
+            "nonce": cross_chain_access_key.nonce.wrapping_add(1),
         })
         .to_string()
     }
@@ -60,6 +62,8 @@ impl SmartAccountContract {
             message,
             signature,
         );
+
+        self.internal_update_nonce(blockchain_id, blockchain_address);
 
         ext_factory::ext(self.factory_contract_id.clone())
             .with_static_gas(VIEW_FUNCTION_GAS)
