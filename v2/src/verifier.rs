@@ -339,7 +339,7 @@ impl SmartAccountContract {
         }
 
         // Step 3: Recover the public key from the signature using rsv components and the message hash
-        let pubkey_bytes = env::ecrecover(&hash, &rs, v, false)
+        let pubkey_bytes = env::ecrecover(&hash, &rs, v, true)
             .expect(ContractError::SignatureVerificationFailed.message());
 
         // Step 4: Derive Ethereum address from recovered public key
@@ -475,7 +475,7 @@ impl SmartAccountContract {
         }
 
         // Step 3: Recover the public key
-        let pubkey_bytes = env::ecrecover(&hash, &rs, v, false)
+        let pubkey_bytes = env::ecrecover(&hash, &rs, v, true)
             .expect(ContractError::SignatureVerificationFailed.message());
 
         // Step 4: Derive TRON address
