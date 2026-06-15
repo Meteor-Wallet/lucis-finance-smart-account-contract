@@ -160,12 +160,19 @@ impl FactoryContract {
             ContractError::InvalidSignatureFormat.message()
         );
 
+        assert!(
+            matches!(sig[0], 27 | 28 | 31 | 32),
+            "{}",
+            ContractError::InvalidSignatureFormat.message()
+        );
+
         let mut rs = [0u8; 64];
         rs.copy_from_slice(&sig[1..65]); // skip header byte
-        let mut v = sig[0] - 27;
-        if v >= 4 {
-            v -= 4;
-        }
+        let v = if sig[0] >= 31 {
+            sig[0] - 31
+        } else {
+            sig[0] - 27
+        };
 
         // 4. Construct Bitcoin message digest
         let prefix = b"\x18Bitcoin Signed Message:\n";
