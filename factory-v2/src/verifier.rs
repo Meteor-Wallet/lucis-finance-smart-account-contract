@@ -3,6 +3,10 @@ use ripemd::Digest;
 
 use crate::*;
 
+const NOIR_MESSAGE_PREFIX: &[u8] = b"Zcash Signed Message:\n";
+const ZCASH_MAINNET_TRANSPARENT_P2PKH_PREFIX: [u8; 2] = [0x1c, 0xb8];
+const ZCASH_TESTNET_TRANSPARENT_P2PKH_PREFIX: [u8; 2] = [0x1d, 0x25];
+
 /// Derive Bitcoin P2PKH payload (version + RIPEMD160(SHA256(pubkey)))
 fn derive_payload(version: u8, pubkey_bytes: &[u8]) -> Vec<u8> {
     let sha = env::sha256_array(pubkey_bytes);
@@ -14,6 +18,49 @@ fn derive_payload(version: u8, pubkey_bytes: &[u8]) -> Vec<u8> {
     payload.push(version);
     payload.extend_from_slice(&ripemd_hash);
     payload
+}
+
+/// Derive Zcash transparent P2PKH payload (2-byte version + RIPEMD160(SHA256(pubkey))).
+fn derive_zcash_transparent_payload(version: &[u8], pubkey_bytes: &[u8]) -> Vec<u8> {
+    let sha = env::sha256_array(pubkey_bytes);
+    let mut ripemd = ripemd::Ripemd160::new();
+    ripemd.update(&sha);
+    let ripemd_hash = ripemd.finalize();
+
+    let mut payload = Vec::with_capacity(22);
+    payload.extend_from_slice(version);
+    payload.extend_from_slice(&ripemd_hash);
+    payload
+}
+
+fn encode_compact_size(size: usize) -> Vec<u8> {
+    if size < 253 {
+        vec![size as u8]
+    } else if size <= u16::MAX as usize {
+        let mut encoded = Vec::with_capacity(3);
+        encoded.push(253);
+        encoded.extend_from_slice(&(size as u16).to_le_bytes());
+        encoded
+    } else if size <= u32::MAX as usize {
+        let mut encoded = Vec::with_capacity(5);
+        encoded.push(254);
+        encoded.extend_from_slice(&(size as u32).to_le_bytes());
+        encoded
+    } else {
+        panic!("{}", ContractError::InvalidMessageLen.message());
+    }
+}
+
+fn noir_message_hash(message: &str) -> [u8; 32] {
+    let message_bytes = message.as_bytes();
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&encode_compact_size(NOIR_MESSAGE_PREFIX.len()));
+    buf.extend_from_slice(NOIR_MESSAGE_PREFIX);
+    buf.extend_from_slice(&encode_compact_size(message_bytes.len()));
+    buf.extend_from_slice(message_bytes);
+
+    let h1 = env::sha256_array(&buf);
+    env::sha256_array(&h1)
 }
 
 /// Compress uncompressed secp256k1 pubkey (64 or 65 bytes → 33 bytes)
@@ -54,6 +101,9 @@ impl FactoryContract {
     ) {
         match blockchain_id.to_lowercase().as_str() {
             "btc" => self.internal_verify_btc_signature(blockchain_address, signature, message),
+            "noirzec" => {
+                self.internal_verify_noir_signature(blockchain_address, signature, message)
+            }
             "ethereum" | "bnb" | "evm" => {
                 self.internal_verify_evm_signature(blockchain_address, signature, message)
             }
@@ -163,6 +213,87 @@ impl FactoryContract {
 
         assert!(
             success,
+            "{}",
+            ContractError::SignatureVerificationFailed.message()
+        );
+    }
+
+    pub fn internal_verify_noir_signature(
+        &self,
+        blockchain_address: String,
+        signature: String,
+        message: String,
+    ) {
+        // Noir Wallet signs with Zcash transparent addresses and returns compact hex signatures.
+        let addr_bytes = bs58::decode(&blockchain_address)
+            .into_vec()
+            .expect(ContractError::InvalidAddressFormat.message());
+
+        assert!(
+            addr_bytes.len() == 26,
+            "{}",
+            ContractError::InvalidAddressFormat.message()
+        );
+
+        let (addr_payload, addr_checksum) = addr_bytes.split_at(22);
+        let (addr_version, _) = addr_payload.split_at(2);
+
+        assert!(
+            addr_version == ZCASH_MAINNET_TRANSPARENT_P2PKH_PREFIX
+                || addr_version == ZCASH_TESTNET_TRANSPARENT_P2PKH_PREFIX,
+            "{}",
+            ContractError::InvalidAddressFormat.message()
+        );
+
+        let h1 = env::sha256_array(addr_payload);
+        let h2 = env::sha256_array(&h1);
+        let expected_checksum = &h2[0..4];
+
+        assert!(
+            expected_checksum == addr_checksum,
+            "{}",
+            ContractError::InvalidAddressFormat.message()
+        );
+
+        let sig_clean = signature.trim_start_matches("0x");
+        let sig = hex::decode(sig_clean).expect(ContractError::InvalidSignatureFormat.message());
+
+        assert!(
+            sig.len() == 65,
+            "{}",
+            ContractError::InvalidSignatureFormat.message()
+        );
+
+        let header = sig[0];
+        assert!(
+            (27..=34).contains(&header),
+            "{}",
+            ContractError::InvalidSignatureFormat.message()
+        );
+
+        let mut rs = [0u8; 64];
+        rs.copy_from_slice(&sig[1..65]);
+        let v = if header >= 31 {
+            header - 31
+        } else {
+            header - 27
+        };
+
+        let hash = noir_message_hash(&message);
+        let pubkey_uncompressed = env::ecrecover(&hash, &rs, v, true)
+            .expect(ContractError::SignatureVerificationFailed.message());
+
+        let payload =
+            derive_zcash_transparent_payload(addr_version, &compress_pubkey(&pubkey_uncompressed));
+        let h1 = env::sha256_array(&payload);
+        let h2 = env::sha256_array(&h1);
+        let checksum = &h2[0..4];
+
+        let mut reconstructed = payload;
+        reconstructed.extend_from_slice(checksum);
+
+        assert!(
+            reconstructed == addr_bytes,
             "{}",
             ContractError::SignatureVerificationFailed.message()
         );
