@@ -3,15 +3,19 @@ use ripemd::Digest;
 
 use crate::*;
 
-/// Derive Bitcoin P2PKH payload (version + RIPEMD160(SHA256(pubkey)))
-fn derive_payload(version: u8, pubkey_bytes: &[u8]) -> Vec<u8> {
+const BITCOIN_MESSAGE_PREFIX: &[u8] = b"\x18Bitcoin Signed Message:\n";
+const ZCASH_MESSAGE_PREFIX: &[u8] = b"\x18Zcash Signed Message:\n";
+const ZCASH_TRANSPARENT_P2PKH_PREFIX: [u8; 2] = [0x1c, 0xb8];
+
+/// Derive transparent P2PKH payload (version bytes + RIPEMD160(SHA256(pubkey)))
+fn derive_payload(version: &[u8], pubkey_bytes: &[u8]) -> Vec<u8> {
     let sha = env::sha256_array(pubkey_bytes);
     let mut ripemd = ripemd::Ripemd160::new();
     ripemd.update(&sha);
     let ripemd_hash = ripemd.finalize();
 
-    let mut payload = Vec::with_capacity(21);
-    payload.push(version);
+    let mut payload = Vec::with_capacity(version.len() + 20);
+    payload.extend_from_slice(version);
     payload.extend_from_slice(&ripemd_hash);
     payload
 }
@@ -54,6 +58,9 @@ impl FactoryContract {
     ) {
         match blockchain_id.to_lowercase().as_str() {
             "btc" => self.internal_verify_btc_signature(blockchain_address, signature, message),
+            "zec" | "zcash" => {
+                self.internal_verify_zec_signature(blockchain_address, signature, message)
+            }
             "ethereum" | "bnb" | "evm" => {
                 self.internal_verify_evm_signature(blockchain_address, signature, message)
             }
@@ -75,18 +82,62 @@ impl FactoryContract {
         signature: String,
         message: String,
     ) {
+        self.internal_verify_transparent_p2pkh_signature(
+            blockchain_address,
+            signature,
+            message,
+            1,
+            None,
+            BITCOIN_MESSAGE_PREFIX,
+        );
+    }
+
+    pub fn internal_verify_zec_signature(
+        &self,
+        blockchain_address: String,
+        signature: String,
+        message: String,
+    ) {
+        self.internal_verify_transparent_p2pkh_signature(
+            blockchain_address,
+            signature,
+            message,
+            2,
+            Some(&ZCASH_TRANSPARENT_P2PKH_PREFIX),
+            ZCASH_MESSAGE_PREFIX,
+        );
+    }
+
+    fn internal_verify_transparent_p2pkh_signature(
+        &self,
+        blockchain_address: String,
+        signature: String,
+        message: String,
+        version_len: usize,
+        expected_version: Option<&[u8]>,
+        message_prefix: &[u8],
+    ) {
         // 1. Decode base58check address → get payload
         let addr_bytes = bs58::decode(&blockchain_address)
             .into_vec()
             .expect(ContractError::InvalidAddressFormat.message());
 
         assert!(
-            addr_bytes.len() == 25,
+            addr_bytes.len() == version_len + 20 + 4,
             "{}",
             ContractError::InvalidAddressFormat.message()
         );
 
-        let (addr_payload, addr_checksum) = addr_bytes.split_at(21);
+        let (addr_payload, addr_checksum) = addr_bytes.split_at(version_len + 20);
+        let (addr_version, _) = addr_payload.split_at(version_len);
+
+        if let Some(expected_version) = expected_version {
+            assert!(
+                addr_version == expected_version,
+                "{}",
+                ContractError::InvalidAddressFormat.message()
+            );
+        }
 
         // 2. Verify address checksum = sha256(sha256(payload))[0..4]
         let h1 = env::sha256_array(addr_payload);
@@ -117,10 +168,9 @@ impl FactoryContract {
             v -= 4;
         }
 
-        // 4. Construct Bitcoin message digest
-        let prefix = b"\x18Bitcoin Signed Message:\n";
+        // 4. Construct chain-specific signed message digest
         let mut buf = Vec::new();
-        buf.extend_from_slice(prefix);
+        buf.extend_from_slice(message_prefix);
 
         let msg_bytes = message.as_bytes();
         let msg_len = msg_bytes.len();
@@ -140,8 +190,8 @@ impl FactoryContract {
 
         // 6. Hash pubkey → derive Bitcoin address payload
         let candidate_payloads = vec![
-            derive_payload(addr_payload[0], &pubkey_uncompressed), // uncompressed
-            derive_payload(addr_payload[0], &compress_pubkey(&pubkey_uncompressed)), // compressed
+            derive_payload(addr_version, &pubkey_uncompressed), // uncompressed
+            derive_payload(addr_version, &compress_pubkey(&pubkey_uncompressed)), // compressed
         ];
 
         // 7. Check if any candidate matches provided address
