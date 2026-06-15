@@ -8,7 +8,7 @@ pub mod verifier;
 use crate::types::{BlockchainAddress, BlockchainId, CrossChainAccessKey, Nonce};
 use borsh::{BorshDeserialize, BorshSerialize};
 use contract_errors::ContractError;
-use near_sdk::json_types::Base64VecU8;
+use near_sdk::json_types::{Base64VecU8, U64};
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::serde_json::{self, json, Value};
 use near_sdk::{env, near, store::LookupMap, AccountId, Promise, PublicKey};
@@ -16,6 +16,8 @@ use near_sdk::{ext_contract, BorshStorageKey, CryptoHash, Gas, NearToken, Promis
 use transaction::{Action, AddKeyPermission, Transaction};
 
 const VERIFY_SIGNATURE_GAS: Gas = Gas::from_tgas(10);
+const FACTORY_WALLET_UPDATE_GAS: Gas = Gas::from_tgas(5);
+const WALLET_UPDATE_CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
 #[derive(BorshSerialize, BorshDeserialize, BorshStorageKey)]
 pub enum StorageKey {
@@ -71,6 +73,18 @@ impl SmartAccountContract {
 #[ext_contract(ext_self)]
 pub trait ExtSelf {
     fn sign_transaction_execution(&mut self, transaction: Transaction) -> Promise;
+    fn on_add_wallet_factory_update(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+    );
+    fn on_remove_wallet_factory_update(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        nonce: U64,
+        last_usable_nonce: U64,
+    );
 }
 
 #[near]
@@ -262,7 +276,7 @@ impl SmartAccountContract {
         new_wallet_blockchain_address: BlockchainAddress,
         signature: String,
         blind_message: Option<bool>,
-    ) {
+    ) -> Promise {
         let blind_message = blind_message.unwrap_or(false);
 
         let message = if blind_message {
@@ -316,16 +330,25 @@ impl SmartAccountContract {
             cross_chain_access_key,
         );
 
-        Promise::new(self.factory_contract_id.clone()).function_call(
-            "add_wallet".to_string(),
-            serde_json::to_vec(&json!({
-                "blockchain_id": new_wallet_blockchain_id,
-                "blockchain_address": new_wallet_blockchain_address,
-            }))
-            .unwrap(),
-            NearToken::from_near(0),
-            Gas::from_tgas(5),
-        );
+        Promise::new(self.factory_contract_id.clone())
+            .function_call(
+                "add_wallet".to_string(),
+                serde_json::to_vec(&json!({
+                    "blockchain_id": new_wallet_blockchain_id.clone(),
+                    "blockchain_address": new_wallet_blockchain_address.clone(),
+                }))
+                .unwrap(),
+                NearToken::from_near(0),
+                FACTORY_WALLET_UPDATE_GAS,
+            )
+            .then(
+                ext_self::ext(env::current_account_id())
+                    .with_static_gas(WALLET_UPDATE_CALLBACK_GAS)
+                    .on_add_wallet_factory_update(
+                        new_wallet_blockchain_id,
+                        new_wallet_blockchain_address,
+                    ),
+            )
     }
 
     pub fn remove_wallet(
@@ -337,7 +360,7 @@ impl SmartAccountContract {
         force: Option<bool>,
         signature: String,
         blind_message: Option<bool>,
-    ) {
+    ) -> Promise {
         let blind_message = blind_message.unwrap_or(false);
 
         let message = if blind_message {
@@ -376,20 +399,88 @@ impl SmartAccountContract {
             );
         }
 
+        let removed_key = self
+            .cross_chain_access_keys
+            .get(&(
+                wallet_blockchain_id_to_be_removed.clone(),
+                wallet_blockchain_address_to_be_removed.clone(),
+            ))
+            .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
+        let removed_nonce = removed_key.nonce;
+        let removed_last_usable_nonce = removed_key.last_usable_nonce;
+
         self.cross_chain_access_keys.remove(&(
             wallet_blockchain_id_to_be_removed.clone(),
             wallet_blockchain_address_to_be_removed.clone(),
         ));
 
-        Promise::new(self.factory_contract_id.clone()).function_call(
-            "remove_wallet".to_string(),
-            serde_json::to_vec(&json!({
-                "blockchain_id": wallet_blockchain_id_to_be_removed,
-                "blockchain_address": wallet_blockchain_address_to_be_removed,
-            }))
-            .unwrap(),
-            NearToken::from_near(0),
-            Gas::from_tgas(5),
+        Promise::new(self.factory_contract_id.clone())
+            .function_call(
+                "remove_wallet".to_string(),
+                serde_json::to_vec(&json!({
+                    "blockchain_id": wallet_blockchain_id_to_be_removed,
+                    "blockchain_address": wallet_blockchain_address_to_be_removed,
+                }))
+                .unwrap(),
+                NearToken::from_near(0),
+                FACTORY_WALLET_UPDATE_GAS,
+            )
+            .then(
+                ext_self::ext(env::current_account_id())
+                    .with_static_gas(WALLET_UPDATE_CALLBACK_GAS)
+                    .on_remove_wallet_factory_update(
+                        wallet_blockchain_id_to_be_removed,
+                        wallet_blockchain_address_to_be_removed,
+                        U64(removed_nonce),
+                        U64(removed_last_usable_nonce),
+                    ),
+            )
+    }
+
+    #[private]
+    pub fn on_add_wallet_factory_update(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) {
+        assert_eq!(
+            env::promise_results_count(),
+            1,
+            "{}",
+            ContractError::UnexpectedPromiseResultCount.message()
         );
+
+        if matches!(env::promise_result(0), PromiseResult::Failed) {
+            self.cross_chain_access_keys
+                .remove(&(blockchain_id, blockchain_address));
+        }
+    }
+
+    #[private]
+    pub fn on_remove_wallet_factory_update(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+        nonce: U64,
+        last_usable_nonce: U64,
+    ) {
+        assert_eq!(
+            env::promise_results_count(),
+            1,
+            "{}",
+            ContractError::UnexpectedPromiseResultCount.message()
+        );
+
+        if matches!(env::promise_result(0), PromiseResult::Failed) {
+            self.cross_chain_access_keys.insert(
+                (blockchain_id.clone(), blockchain_address.clone()),
+                CrossChainAccessKey {
+                    blockchain: blockchain_id,
+                    address: blockchain_address,
+                    nonce: nonce.0,
+                    last_usable_nonce: last_usable_nonce.0,
+                },
+            );
+        }
     }
 }
