@@ -105,10 +105,10 @@ impl SmartAccountContract {
             for action in &transaction.actions {
                 match action {
                     // Allowing create sub account
-                    Action::CreateAccount => {
-                        // panic!("{}", ContractError::ActionNotAllowed.message());
+                    Action::CreateAccount | Action::Transfer { .. } => {}
+                    _ => {
+                        panic!("{}", ContractError::ActionNotAllowed.message());
                     }
-                    _ => {}
                 }
             }
         }
