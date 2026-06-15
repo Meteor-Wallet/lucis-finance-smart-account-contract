@@ -79,6 +79,8 @@ async function createEthereumSmartAccount({
         {
             blockchain_id: blockchainId,
             blockchain_address: blockchainAddress,
+            brand: extraArgs.brand ?? null,
+            account_id: extraArgs.account_id ?? null,
         }
     );
 
