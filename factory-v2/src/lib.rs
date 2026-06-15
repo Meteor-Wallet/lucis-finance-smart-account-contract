@@ -174,7 +174,16 @@ impl FactoryContract {
         blockchain_address: BlockchainAddress,
     ) {
         let account_id = env::predecessor_account_id();
+        let expected_suffix = format!(".{}", env::current_account_id());
 
+        // This function is intentionally not #[private]: v2 smart accounts call it by cross-contract
+        // promise, so predecessor is the managed account, not the factory itself. A caller is accepted
+        // only if it is one of this factory's registered sub-accounts.
+        assert!(
+            account_id.as_str().ends_with(&expected_suffix),
+            "{}",
+            ContractError::InvalidAccountId.message()
+        );
         if self.account_id_to_wallet.get(&account_id).is_none() {
             env::panic_str(ContractError::InvalidAccountId.message());
         }
@@ -196,7 +205,15 @@ impl FactoryContract {
         blockchain_address: BlockchainAddress,
     ) {
         let account_id = env::predecessor_account_id();
+        let expected_suffix = format!(".{}", env::current_account_id());
 
+        // See add_wallet: this must be callable by managed smart accounts, but never by unrelated
+        // accounts that try to poison the discovery index.
+        assert!(
+            account_id.as_str().ends_with(&expected_suffix),
+            "{}",
+            ContractError::InvalidAccountId.message()
+        );
         if self.account_id_to_wallet.get(&account_id).is_none() {
             env::panic_str(ContractError::InvalidAccountId.message());
         }
