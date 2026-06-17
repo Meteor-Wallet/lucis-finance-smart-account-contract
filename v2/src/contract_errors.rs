@@ -19,6 +19,7 @@ pub enum ContractError {
     InvalidMessageLen,               // E029
     CanNotRevokeSelf,                // E036
     WalletAlreadyRegistered,         // E037
+    UpgradeAlreadyPending,           // E038
 }
 
 impl ContractError {
@@ -45,6 +46,7 @@ impl ContractError {
             ContractError::InvalidMessageLen => "E029: invalid message length",
             ContractError::CanNotRevokeSelf => "E036: cannot revoke the access key that is used to sign the message",
             ContractError::WalletAlreadyRegistered => "E037: wallet already registered",
+            ContractError::UpgradeAlreadyPending => "E038: upgrade already pending",
         }
     }
 }

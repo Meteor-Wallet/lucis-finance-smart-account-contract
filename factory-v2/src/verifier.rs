@@ -189,10 +189,13 @@ impl FactoryContract {
         // 5. Recover pubkey (always uncompressed from ecrecover)
         let pubkey_uncompressed = env::ecrecover(&hash, &rs, v, true)
             .expect(ContractError::SignatureVerificationFailed.message());
+        let mut pubkey_uncompressed_full = Vec::with_capacity(65);
+        pubkey_uncompressed_full.push(0x04);
+        pubkey_uncompressed_full.extend_from_slice(&pubkey_uncompressed);
 
         // 6. Hash pubkey → derive Bitcoin address payload
         let candidate_payloads = vec![
-            derive_payload(addr_payload[0], &pubkey_uncompressed), // uncompressed
+            derive_payload(addr_payload[0], &pubkey_uncompressed_full), // uncompressed
             derive_payload(addr_payload[0], &compress_pubkey(&pubkey_uncompressed)), // compressed
         ];
 

@@ -15,7 +15,7 @@ pub trait ExtUpgradeCallback {
         &mut self,
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
-    ) -> Promise;
+    ) -> PromiseOrValue<()>;
 }
 
 #[near]
@@ -23,10 +23,15 @@ impl SmartAccountContract {
     #[private]
     #[init(ignore_state)]
     pub fn migrate() -> Self {
-        let old_contract: SmartAccountContract =
+        let old_contract: SmartAccountContractV2State =
             env::state_read().expect(ContractError::ReadStateFailed.message());
 
-        old_contract
+        Self {
+            factory_contract_id: old_contract.factory_contract_id,
+            current_code_hash: old_contract.current_code_hash,
+            cross_chain_access_keys: old_contract.cross_chain_access_keys,
+            upgrade_pending: false,
+        }
     }
 
     pub fn get_current_code_hash(&self) -> CryptoHash {
@@ -65,12 +70,20 @@ impl SmartAccountContract {
             Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let message = self.message_for_upgrade(blockchain_id.clone(), blockchain_address.clone());
 
+        assert!(
+            !self.upgrade_pending,
+            "{}",
+            ContractError::UpgradeAlreadyPending.message()
+        );
+
         self.internal_verify_signature(
             blockchain_id.clone(),
             blockchain_address.clone(),
             message,
             signature,
         );
+
+        self.upgrade_pending = true;
 
         ext_factory::ext(self.factory_contract_id.clone())
             .with_static_gas(VIEW_FUNCTION_GAS)
@@ -91,38 +104,42 @@ impl SmartAccountContract {
         &mut self,
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
-    ) -> Promise {
-        assert_eq!(
-            env::promise_results_count(),
-            1,
-            "{}",
-            ContractError::UnexpectedPromiseResultCount.message()
-        );
+    ) -> PromiseOrValue<()> {
+        self.upgrade_pending = false;
 
-        match env::promise_result(0) {
-            PromiseResult::Failed => {
-                panic!("{}", ContractError::UnexpectedPromiseFailure.message());
-            }
-            PromiseResult::Successful(result) => {
-                let code_hash_option: Option<CryptoHash> =
-                    near_sdk::serde_json::from_slice(&result).unwrap();
-
-                if let Some(new_code_hash) = code_hash_option {
-                    self.current_code_hash = new_code_hash;
-                    self.internal_update_nonce(blockchain_id, blockchain_address);
-                } else {
-                    panic!("{}", ContractError::NoUpgradeAvailable.message());
-                }
-            }
+        if env::promise_results_count() != 1 {
+            return PromiseOrValue::Value(());
         }
 
-        Promise::new(env::current_account_id())
-            .use_global_contract(self.current_code_hash.into())
-            .function_call(
-                "migrate".to_string(),
-                json!({}).to_string().as_bytes().to_vec(),
-                NearToken::from_near(0),
-                MIGRATE_GAS,
-            )
+        let code_hash_option = match env::promise_result(0) {
+            PromiseResult::Failed => return PromiseOrValue::Value(()),
+            PromiseResult::Successful(result) => near_sdk::serde_json::from_slice(&result).ok(),
+        };
+
+        let Some(Some(new_code_hash)) = code_hash_option else {
+            return PromiseOrValue::Value(());
+        };
+
+        if self
+            .cross_chain_access_keys
+            .get(&(blockchain_id.clone(), blockchain_address.clone()))
+            .is_none()
+        {
+            return PromiseOrValue::Value(());
+        }
+
+        self.current_code_hash = new_code_hash;
+        self.internal_update_nonce(blockchain_id, blockchain_address);
+
+        PromiseOrValue::Promise(
+            Promise::new(env::current_account_id())
+                .use_global_contract(self.current_code_hash.into())
+                .function_call(
+                    "migrate".to_string(),
+                    json!({}).to_string().as_bytes().to_vec(),
+                    NearToken::from_near(0),
+                    MIGRATE_GAS,
+                ),
+        )
     }
 }

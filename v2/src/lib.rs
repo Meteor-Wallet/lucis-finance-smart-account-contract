@@ -11,7 +11,7 @@ use contract_errors::ContractError;
 use near_sdk::json_types::{Base64VecU8, U64};
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::serde_json::{self, json, Value};
-use near_sdk::{env, near, store::LookupMap, AccountId, Promise, PublicKey};
+use near_sdk::{env, near, store::LookupMap, AccountId, Promise, PromiseOrValue, PublicKey};
 use near_sdk::{ext_contract, BorshStorageKey, CryptoHash, Gas, NearToken, PromiseResult};
 use transaction::{Action, AddKeyPermission, Transaction};
 
@@ -26,6 +26,14 @@ pub enum StorageKey {
 
 #[near(contract_state)]
 pub struct SmartAccountContract {
+    factory_contract_id: AccountId,
+    current_code_hash: CryptoHash,
+    cross_chain_access_keys: LookupMap<(BlockchainId, BlockchainAddress), CrossChainAccessKey>,
+    upgrade_pending: bool,
+}
+
+#[derive(BorshDeserialize)]
+pub struct SmartAccountContractV2State {
     factory_contract_id: AccountId,
     current_code_hash: CryptoHash,
     cross_chain_access_keys: LookupMap<(BlockchainId, BlockchainAddress), CrossChainAccessKey>,
@@ -52,6 +60,7 @@ impl SmartAccountContract {
             factory_contract_id: env::predecessor_account_id(),
             current_code_hash: code_hash,
             cross_chain_access_keys: LookupMap::new(StorageKey::CrossChainAccessKeys),
+            upgrade_pending: false,
         };
 
         let initial_nonce = contract.internal_generate_nonce();
