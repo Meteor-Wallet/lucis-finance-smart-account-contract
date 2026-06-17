@@ -363,7 +363,7 @@ impl SmartAccountContract {
         // Keep the 0x prefix strict. factory-v2 uses this verifier during create_account, so a
         // no-prefix EVM address is rejected before deployment rather than creating an unusable account.
         assert!(
-            recovered_addr.to_lowercase() == blockchain_address.to_lowercase(),
+            recovered_addr.eq_ignore_ascii_case(&blockchain_address),
             "{}",
             ContractError::SignatureVerificationFailed.message()
         );
