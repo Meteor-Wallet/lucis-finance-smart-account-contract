@@ -2,6 +2,7 @@ use crate::*;
 
 const VIEW_FUNCTION_GAS: Gas = Gas::from_tgas(5);
 const UPGRADE_PREPARATION_GAS: Gas = VIEW_FUNCTION_GAS.saturating_add(VERIFY_SIGNATURE_GAS);
+const MINIMUM_UPGRADE_GAS: Gas = Gas::from_tgas(135);
 const MIGRATE_GAS: Gas = Gas::from_tgas(100);
 
 #[ext_contract(ext_factory)]
@@ -69,6 +70,12 @@ impl SmartAccountContract {
         let blockchain_address =
             Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let message = self.message_for_upgrade(blockchain_id.clone(), blockchain_address.clone());
+
+        assert!(
+            env::prepaid_gas() >= MINIMUM_UPGRADE_GAS,
+            "{}",
+            ContractError::NotEnoughGasLeft.message()
+        );
 
         assert!(
             !self.upgrade_pending,

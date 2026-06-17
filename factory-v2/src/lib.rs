@@ -48,6 +48,7 @@ impl Default for FactoryContract {
 #[near]
 impl FactoryContract {
     #[init]
+    #[private]
     pub fn new(owner_id: AccountId, latest_code_hash: Base64VecU8) -> Self {
         let latest_code_hash: Vec<u8> = latest_code_hash.into();
 

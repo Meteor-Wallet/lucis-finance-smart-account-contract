@@ -13,6 +13,13 @@ const __dirname = path.dirname(__filename);
 async function createV2FactoryAccount(factoryOwner) {
     const randomSuffix = `rebind-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const factoryContractId = `${randomSuffix}.${factoryOwner.accountId}`;
+    const factoryKeyPair = nearAPI.KeyPair.fromRandom('ed25519');
+    const factorySigner = new nearAPI.KeyPairSigner(factoryKeyPair);
+    const factoryAccount = new nearAPI.Account(
+        factoryContractId,
+        factoryOwner.provider,
+        factorySigner
+    );
 
     const accountWasm = fs.readFileSync(
         path.join(
@@ -47,6 +54,17 @@ async function createV2FactoryAccount(factoryOwner) {
             nearAPI.transactions.transfer(
                 nearAPI.utils.format.parseNearAmount('10')
             ),
+            nearAPI.transactions.addKey(
+                factoryKeyPair.getPublicKey(),
+                nearAPI.transactions.fullAccessKey()
+            ),
+        ],
+    });
+
+    await factoryAccount.signAndSendTransaction({
+        waitUntil: 'FINAL',
+        receiverId: factoryContractId,
+        actions: [
             nearAPI.transactions.deployContract(factoryWasm),
             nearAPI.transactions.functionCall(
                 'new',
