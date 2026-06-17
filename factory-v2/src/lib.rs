@@ -63,6 +63,7 @@ impl FactoryContract {
         }
     }
 
+    #[private]
     #[init(ignore_state)]
     pub fn migrate() -> Self {
         let old_state: FactoryContractV1 = env::state_read().expect("Failed to read state");
@@ -131,6 +132,8 @@ impl FactoryContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) -> AccountId {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         self.internal_generate_account_id(blockchain_id, blockchain_address)
     }
 
@@ -166,6 +169,8 @@ impl FactoryContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) -> Vec<AccountId> {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         self.wallet_to_account_id
             .get(&(blockchain_id, blockchain_address))
             .cloned()
@@ -177,6 +182,8 @@ impl FactoryContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let account_id = env::predecessor_account_id();
         let expected_suffix = format!(".{}", env::current_account_id());
 
@@ -208,6 +215,8 @@ impl FactoryContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let account_id = env::predecessor_account_id();
         let expected_suffix = format!(".{}", env::current_account_id());
 
@@ -246,6 +255,8 @@ impl FactoryContract {
         brand: Option<String>,
         account_id: Option<String>,
     ) -> Promise {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         assert!(
             env::block_timestamp() <= deadline.0,
             "{}",

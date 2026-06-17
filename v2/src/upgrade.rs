@@ -11,7 +11,11 @@ pub trait ExtFactory {
 
 #[ext_contract(ext_upgrade_callback)]
 pub trait ExtUpgradeCallback {
-    fn on_get_code_hash_upgrade_target(&mut self) -> Promise;
+    fn on_get_code_hash_upgrade_target(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) -> Promise;
 }
 
 #[near]
@@ -34,6 +38,8 @@ impl SmartAccountContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) -> String {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let cross_chain_access_key = self
             .cross_chain_access_keys
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
@@ -55,6 +61,8 @@ impl SmartAccountContract {
         blockchain_address: BlockchainAddress,
         signature: String,
     ) -> Promise {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let message = self.message_for_upgrade(blockchain_id.clone(), blockchain_address.clone());
 
         self.internal_verify_signature(
@@ -63,8 +71,6 @@ impl SmartAccountContract {
             message,
             signature,
         );
-
-        self.internal_update_nonce(blockchain_id, blockchain_address);
 
         ext_factory::ext(self.factory_contract_id.clone())
             .with_static_gas(VIEW_FUNCTION_GAS)
@@ -76,12 +82,16 @@ impl SmartAccountContract {
                             .checked_sub(UPGRADE_PREPARATION_GAS)
                             .expect(ContractError::NotEnoughGasLeft.message()),
                     )
-                    .on_get_code_hash_upgrade_target(),
+                    .on_get_code_hash_upgrade_target(blockchain_id, blockchain_address),
             )
     }
 
     #[private]
-    pub fn on_get_code_hash_upgrade_target(&mut self) -> Promise {
+    pub fn on_get_code_hash_upgrade_target(
+        &mut self,
+        blockchain_id: BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) -> Promise {
         assert_eq!(
             env::promise_results_count(),
             1,
@@ -99,6 +109,7 @@ impl SmartAccountContract {
 
                 if let Some(new_code_hash) = code_hash_option {
                     self.current_code_hash = new_code_hash;
+                    self.internal_update_nonce(blockchain_id, blockchain_address);
                 } else {
                     panic!("{}", ContractError::NoUpgradeAvailable.message());
                 }

@@ -46,6 +46,8 @@ impl SmartAccountContract {
         blockchain_address: BlockchainAddress,
         code_hash: CryptoHash,
     ) -> Self {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let mut contract = Self {
             factory_contract_id: env::predecessor_account_id(),
             current_code_hash: code_hash,
@@ -95,6 +97,8 @@ impl SmartAccountContract {
         blockchain_address: BlockchainAddress,
         transaction: Transaction,
     ) -> String {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let cross_chain_access_key = self
             .cross_chain_access_keys
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
@@ -119,6 +123,12 @@ impl SmartAccountContract {
         new_wallet_blockchain_id: BlockchainId,
         new_wallet_blockchain_address: BlockchainAddress,
     ) -> String {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
+        let new_wallet_blockchain_address = Self::internal_normalize_blockchain_address(
+            &new_wallet_blockchain_id,
+            new_wallet_blockchain_address,
+        );
         let cross_chain_access_key = self
             .cross_chain_access_keys
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
@@ -154,6 +164,12 @@ impl SmartAccountContract {
         wallet_blockchain_address_to_be_removed: BlockchainAddress,
         force: Option<bool>,
     ) -> String {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
+        let wallet_blockchain_address_to_be_removed = Self::internal_normalize_blockchain_address(
+            &wallet_blockchain_id_to_be_removed,
+            wallet_blockchain_address_to_be_removed,
+        );
         let cross_chain_access_key = self
             .cross_chain_access_keys
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
@@ -244,6 +260,8 @@ impl SmartAccountContract {
         blind_message: Option<bool>,
     ) -> Promise {
         let blind_message = blind_message.unwrap_or(false);
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
 
         let message = if blind_message {
             self.blind_message_for_sign_transaction(
@@ -281,6 +299,12 @@ impl SmartAccountContract {
         blind_message: Option<bool>,
     ) -> Promise {
         let blind_message = blind_message.unwrap_or(false);
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
+        let new_wallet_blockchain_address = Self::internal_normalize_blockchain_address(
+            &new_wallet_blockchain_id,
+            new_wallet_blockchain_address,
+        );
 
         let message = if blind_message {
             self.blind_message_for_add_wallet(
@@ -366,6 +390,12 @@ impl SmartAccountContract {
         blind_message: Option<bool>,
     ) -> Promise {
         let blind_message = blind_message.unwrap_or(false);
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
+        let wallet_blockchain_address_to_be_removed = Self::internal_normalize_blockchain_address(
+            &wallet_blockchain_id_to_be_removed,
+            wallet_blockchain_address_to_be_removed,
+        );
 
         let message = if blind_message {
             self.blind_message_for_remove_wallet(

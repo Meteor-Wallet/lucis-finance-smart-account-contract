@@ -188,12 +188,7 @@ impl SmartAccountContract {
         buf.extend_from_slice(prefix);
 
         let msg_bytes = message.as_bytes();
-        let msg_len = msg_bytes.len();
-        if msg_len < 253 {
-            buf.push(msg_len as u8);
-        } else {
-            panic!("{}", ContractError::InvalidMessageLen.message());
-        }
+        buf.extend_from_slice(&encode_compact_size(msg_bytes.len()));
         buf.extend_from_slice(msg_bytes);
 
         let h1 = env::sha256_array(&buf);
@@ -575,6 +570,28 @@ mod tests {
         let message = "Hello, Bob!".to_string();
 
         // This signature was generated for message "Hello, NEAR!"
+        let signature = "IEimFaFYMNk57Zg9ZMvK59hAyl6RTUC2mpsn/1v2WkjcCjMbvR7XMtyK2GAE+cM9UpMvAI5A89YGPMabuiYMXhs=".to_string();
+
+        contract.internal_verify_btc_signature(blockchain_address, signature, message);
+    }
+
+    #[test]
+    #[should_panic(expected = "E004: signature verification failed")]
+    fn test_internal_verify_btc_signature_long_message() {
+        let context = get_context(accounts(0));
+        testing_env!(context.build());
+
+        let blockchain_id = "btc".to_string();
+        let blockchain_address = "mgm2K4RoQsmcvaCyANUGm479hWNfk6bXC9".to_string();
+        let code_hash = CryptoHash::default();
+
+        let contract =
+            SmartAccountContract::init(blockchain_id, blockchain_address.clone(), code_hash);
+
+        let message = "x".repeat(253);
+
+        // This signature was generated for message "Hello, NEAR!", so the long message should
+        // reach signature verification instead of failing at Bitcoin compact-size encoding.
         let signature = "IEimFaFYMNk57Zg9ZMvK59hAyl6RTUC2mpsn/1v2WkjcCjMbvR7XMtyK2GAE+cM9UpMvAI5A89YGPMabuiYMXhs=".to_string();
 
         contract.internal_verify_btc_signature(blockchain_address, signature, message);

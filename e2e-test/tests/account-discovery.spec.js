@@ -208,7 +208,7 @@ test('factory creates named and branded accounts and exposes wallet/account look
                 account_id: namedAccountId,
             }
         )
-    ).resolves.toEqual([['ethereum', namedWallet.address]]);
+    ).resolves.toEqual([['ethereum', namedWallet.address.toLowerCase()]]);
 
     await expect(
         nearJsonRpcProvider.callFunction(
@@ -218,7 +218,7 @@ test('factory creates named and branded accounts and exposes wallet/account look
                 account_id: firstBrandedAccountId,
             }
         )
-    ).resolves.toEqual([['ethereum', firstBrandedWallet.address]]);
+    ).resolves.toEqual([['ethereum', firstBrandedWallet.address.toLowerCase()]]);
 
     await expect(
         nearJsonRpcProvider.callFunction(

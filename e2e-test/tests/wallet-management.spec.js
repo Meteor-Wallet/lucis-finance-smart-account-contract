@@ -183,8 +183,14 @@ test('ethereum wallet can add and remove another wallet from a v2 smart account'
             account_id: aliceAccountId,
         }
     );
-    expect(walletsAfterAdd).toContainEqual([blockchainId, aliceWallet.address]);
-    expect(walletsAfterAdd).toContainEqual([blockchainId, bobWallet.address]);
+    expect(walletsAfterAdd).toContainEqual([
+        blockchainId,
+        aliceWallet.address.toLowerCase(),
+    ]);
+    expect(walletsAfterAdd).toContainEqual([
+        blockchainId,
+        bobWallet.address.toLowerCase(),
+    ]);
 
     const accountIdsForBob = await nearJsonRpcProvider.callFunction(
         factoryContractId,
@@ -280,11 +286,11 @@ test('ethereum wallet can add and remove another wallet from a v2 smart account'
     );
     expect(walletsAfterRemove).toContainEqual([
         blockchainId,
-        aliceWallet.address,
+        aliceWallet.address.toLowerCase(),
     ]);
     expect(walletsAfterRemove).not.toContainEqual([
         blockchainId,
-        bobWallet.address,
+        bobWallet.address.toLowerCase(),
     ]);
 
     const accountIdsForBobAfterRemove = await nearJsonRpcProvider.callFunction(

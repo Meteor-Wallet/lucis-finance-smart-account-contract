@@ -274,7 +274,7 @@ test('v1 migrate to v2', async () => {
             account_id: bobAccountId,
         }
     );
-    expect(bobWallets).toEqual([['ethereum', bobWallet.address]]);
+    expect(bobWallets).toEqual([['ethereum', bobWallet.address.toLowerCase()]]);
 
     const bobAccountIds = await nearJsonRpcProvider.callFunction(
         factoryContractId,

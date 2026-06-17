@@ -3,6 +3,16 @@ use std::str::FromStr;
 use crate::*;
 
 impl FactoryContract {
+    pub fn internal_normalize_blockchain_address(
+        blockchain_id: &BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) -> BlockchainAddress {
+        match blockchain_id.to_lowercase().as_str() {
+            "ethereum" | "bnb" | "evm" | "ton" => blockchain_address.to_lowercase(),
+            _ => blockchain_address,
+        }
+    }
+
     pub fn internal_message_for_create_account(
         &self,
         blockchain_id: BlockchainId,
@@ -11,6 +21,8 @@ impl FactoryContract {
         account_id: Option<String>,
         deadline: u64,
     ) -> String {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let resolved_account_id = self.internal_resolve_account_id(
             blockchain_id.clone(),
             blockchain_address.clone(),
@@ -36,6 +48,8 @@ impl FactoryContract {
         brand: Option<String>,
         account_id: Option<String>,
     ) -> AccountId {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         assert!(
             brand.is_none() || account_id.is_none(),
             "{}",

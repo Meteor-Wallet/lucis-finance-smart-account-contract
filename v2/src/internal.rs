@@ -3,6 +3,16 @@ use near_sdk::Allowance;
 use crate::*;
 
 impl SmartAccountContract {
+    pub fn internal_normalize_blockchain_address(
+        blockchain_id: &BlockchainId,
+        blockchain_address: BlockchainAddress,
+    ) -> BlockchainAddress {
+        match blockchain_id.to_lowercase().as_str() {
+            "ethereum" | "bnb" | "evm" | "ton" => blockchain_address.to_lowercase(),
+            _ => blockchain_address,
+        }
+    }
+
     pub fn internal_generate_nonce(&self) -> Nonce {
         let seed = env::random_seed();
         let mut bytes = [0u8; 8];
@@ -15,6 +25,8 @@ impl SmartAccountContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let cross_chain_access_key = self
             .cross_chain_access_keys
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
@@ -40,6 +52,8 @@ impl SmartAccountContract {
         blockchain_id: BlockchainId,
         blockchain_address: BlockchainAddress,
     ) -> u64 {
+        let blockchain_address =
+            Self::internal_normalize_blockchain_address(&blockchain_id, blockchain_address);
         let cross_chain_access_key = self
             .cross_chain_access_keys
             .get(&(blockchain_id.clone(), blockchain_address.clone()))
