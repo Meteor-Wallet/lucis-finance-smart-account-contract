@@ -318,11 +318,12 @@ impl SmartAccountContract {
 
         self.internal_update_nonce(blockchain_id, blockchain_address);
 
+        let initial_nonce = self.internal_generate_nonce();
         let cross_chain_access_key = CrossChainAccessKey {
             blockchain: new_wallet_blockchain_id.clone(),
             address: new_wallet_blockchain_address.clone(),
-            nonce: 0,
-            last_usable_nonce: u64::MAX,
+            nonce: initial_nonce,
+            last_usable_nonce: initial_nonce.wrapping_sub(1),
         };
 
         self.cross_chain_access_keys.insert(
