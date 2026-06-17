@@ -110,6 +110,27 @@ test('factory creates named and branded accounts and exposes wallet/account look
     const factoryContractId = await createV2FactoryAccount(factoryOwner);
     const brand = `brand${Date.now().toString(36)}`;
 
+    await expect(
+        nearJsonRpcProvider.callFunction(
+            factoryContractId,
+            'list_wallets_for_account_id',
+            {
+                account_id: `missing.${factoryContractId}`,
+            }
+        )
+    ).resolves.toEqual([]);
+
+    await expect(
+        nearJsonRpcProvider.callFunction(
+            factoryContractId,
+            'list_account_ids_for_wallet',
+            {
+                blockchain_id: 'ethereum',
+                blockchain_address: ethers.Wallet.createRandom().address,
+            }
+        )
+    ).resolves.toEqual([]);
+
     await factoryOwner.callFunction({
         waitUntil: 'FINAL',
         contractId: factoryContractId,
