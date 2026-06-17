@@ -40,6 +40,7 @@ impl SmartAccountContract {
             .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
 
         json!({
+            "contract_id": env::current_account_id(),
             "blockchain_id": blockchain_id,
             "blockchain_address": blockchain_address,
             "action": "upgrade",

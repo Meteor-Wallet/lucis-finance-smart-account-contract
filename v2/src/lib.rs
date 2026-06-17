@@ -103,6 +103,7 @@ impl SmartAccountContract {
         self.internal_validate_transaction(&transaction);
 
         serde_json::to_string(&json!({
+            "contract_id": env::current_account_id(),
             "blockchain_id": blockchain_id,
             "blockchain_address": blockchain_address,
             "transaction": transaction,
@@ -135,6 +136,7 @@ impl SmartAccountContract {
         );
 
         serde_json::to_string(&json!({
+            "contract_id": env::current_account_id(),
             "blockchain_id": blockchain_id,
             "blockchain_address": blockchain_address,
             "new_wallet_blockchain_id": new_wallet_blockchain_id,
@@ -165,6 +167,7 @@ impl SmartAccountContract {
             .expect(ContractError::UnauthorizedCrossChainAccessKey.message());
 
         serde_json::to_string(&json!({
+            "contract_id": env::current_account_id(),
             "blockchain_id": blockchain_id,
             "blockchain_address": blockchain_address,
             "wallet_blockchain_id_to_be_removed": wallet_blockchain_id_to_be_removed,
