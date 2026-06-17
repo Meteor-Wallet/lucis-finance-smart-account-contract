@@ -392,8 +392,6 @@ impl SmartAccountContract {
             signature,
         );
 
-        self.internal_update_nonce(blockchain_id.clone(), blockchain_address.clone());
-
         if !force.unwrap_or(false) {
             assert!(
                 blockchain_id != wallet_blockchain_id_to_be_removed
@@ -402,6 +400,8 @@ impl SmartAccountContract {
                 ContractError::CanNotRevokeSelf.message()
             );
         }
+
+        self.internal_update_nonce(blockchain_id.clone(), blockchain_address.clone());
 
         let removed_key = self
             .cross_chain_access_keys
